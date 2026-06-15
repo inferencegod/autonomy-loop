@@ -1,0 +1,17 @@
+{
+  "name": "autonomy-loop-launch",
+  "version": "1.0.0",
+  "description": "Remotion launch clip for the autonomy-loop plugin (~26s, 1080p).",
+  "scripts": {
+    "studio": "remotion studio",
+    "render": "remotion render Clip out/autonomy-loop.mp4",
+    "render:gif": "remotion render Clip out/autonomy-loop.gif --every-nth-frame=2"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.230",
+    "remotion": "^4.0.230",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": { "@types/react": "^18.3.3", "typescript": "^5.5.4" }
+}

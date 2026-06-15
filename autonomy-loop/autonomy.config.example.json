@@ -1,0 +1,34 @@
+{
+  "_comment": "Copy to autonomy.config.json at your repo root and tune. The loop, hook, and prompts read every knob from here. autonomy.config.json is gitignored (per-checkout).",
+  "project": "your-project",
+  "workBranch": "agent-loop",
+  "prodBranch": "main",
+  "worktreePath": "../your-project-review",
+  "loopIntervalSec": 600,
+  "models": {
+    "_comment": "Cost control. Reviewer CRITICS default cheap; only the escalation Judge is Opus. See README Cost.",
+    "builder": "opus",
+    "reviewerJudge": "opus",
+    "reviewerCritics": "sonnet"
+  },
+  "gate": {
+    "test": "<your test command, e.g. npm test>",
+    "build": "<your build command, or empty if none>",
+    "lint": "<your lint command, or empty if none>",
+    "comment_frozenInvariant": "What must stay BYTE-IDENTICAL unless a human re-baselines — golden/snapshot tests, a recorded API contract, etc. Empty if none.",
+    "frozenInvariant": "snapshot/golden tests stay byte-identical",
+    "envFidelity": ""
+  },
+  "comment_protectedPaths": "Edits AND bash-writes (rm/mv/cp/redirect) to these are blocked by the hook. Substrings.",
+  "protectedPaths": ["test/__snapshots__/", "test/golden/"],
+  "gateList": [
+    "Push / fast-forward the prodBranch.",
+    "Drift the frozen invariant without a human re-baseline.",
+    "Secrets / deploy settings / key rotation.",
+    "Destructive git (force-push, reset --hard, history rewrite).",
+    "Fabricating data (every number carries N+CI or 'building — N/30')."
+  ],
+  "honestyRule": "No fabricated numbers. Every rate carries N + a confidence interval, or says 'building — N/30'. A capability with no real data abstains visibly — never faked, never silently dead.",
+  "postToolUseTestHook": false,
+  "_example": "Real-world shape: a Next.js app used workBranch 'agent-loop', a set of golden snapshot tests as the frozen invariant, and protectedPaths ['test/golden/']."
+}

@@ -1,0 +1,8 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "autonomy-loop",
+  "owner": { "name": "inferencegod" },
+  "plugins": [
+    { "name": "autonomy-loop", "source": "./autonomy-loop", "description": "Two-terminal builder/reviewer autonomy loop with a frozen-invariant gate + anti-fabrication discipline." }
+  ]
+}
