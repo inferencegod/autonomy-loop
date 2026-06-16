@@ -14,7 +14,7 @@ EACH TICK:
    (if it is NOT a clean fast-forward, do NOT merge — write the conflict to `FOR-REVIEW.md`,
    set `turn: human`, EXIT).
 2. The wave to review = `git log <last-reviewed-sha>..HEAD` (read each diff with `git show <sha>`).
-   Run the FULL gate yourself (`{{gate.test}}` + frozen invariant intact + `{{gate.build}}`) —
+   Run the FULL gate yourself (`{{gate.test}}` + frozen invariant intact + `{{gate.build}}`, plus the coverage ratchet when `{{gate.coverage}}` is set: re-run it then `node ${CLAUDE_PLUGIN_ROOT}/hooks/coverage-ratchet.mjs`, and treat a coverage drop below the floor as a failed gate to bounce back) —
    verify the builder's claims, don't trust them.
 
 EFFORT-SCALE the review:

@@ -65,6 +65,7 @@ Copy `autonomy.config.example.json` -> `autonomy.config.json` at your repo root 
 | `workBranch` / `prodBranch` | the loop only ever pushes `workBranch`; `prodBranch` is gated |
 | `worktreePath` | where Terminal 2's worktree lives |
 | `gate.test` / `gate.build` / `gate.lint` | your real commands — the reviewer re-runs them |
+| `gate.coverage` | optional third gate: a command that emits a coverage summary; the reviewer ratchets coverage so it can never silently drop (see [Coverage ratchet](#coverage-ratchet-the-third-gate)) |
 | `gate.frozenInvariant` | what must stay byte-identical without a human re-baseline |
 | `protectedPaths` | edits **and** shell writes (`rm`/`mv`/`cp`/redirect/`sed -i`) here are blocked by the hook |
 | `models.builder` / `reviewerCritics` / `reviewerJudge` | builder + cheap critics + escalation judge |
@@ -74,7 +75,7 @@ Copy `autonomy.config.example.json` -> `autonomy.config.json` at your repo root 
 
 **Read this before you trust it.** The `gate-guard` PreToolUse hook is a **defense-in-depth tripwire, not a sandbox.** It catches the *common-case* dangerous actions and returns a structured denial the model can act on (escalate to a human), instead of crashing the agent.
 
-What it blocks today (with unit tests in [`test/gate-guard.test.mjs`](test/gate-guard.test.mjs)): pushes/fast-forwards to `prodBranch` (including `HEAD:refs/heads/...` refspecs), force-push, history rewrite / `reset --hard` / `--mirror`, `gh` PR-merge/release/workflow shipping, and edits **or** shell writes/deletes targeting `protectedPaths`.
+What it blocks today (with unit tests in [`autonomy-loop/test/gate-guard.test.mjs`](autonomy-loop/test/gate-guard.test.mjs)): pushes/fast-forwards to `prodBranch` (including `HEAD:refs/heads/...` refspecs), force-push, history rewrite / `reset --hard` / `--mirror`, `gh` PR-merge/release/workflow shipping, and edits **or** shell writes/deletes targeting `protectedPaths`.
 
 What it **cannot** do — be honest with yourself:
 
@@ -83,6 +84,27 @@ What it **cannot** do — be honest with yourself:
 - If `autonomy.config.json` is missing/unparseable, the hook prints a **visible warning** and falls back to universal git guards only (`protectedPaths` are *not* enforced). It fails loud, not silent — but it does fail open on paths.
 
 **Real backstops** (use them in addition, not instead): server-side **branch protection** on `prodBranch`, **read-only file permissions** on golden/frozen files, and running the loop in a **container / disposable checkout**. The hook reduces blast radius; your infra is what actually contains it.
+
+## Coverage ratchet (the third gate)
+
+The builder writes a RED-before-green test for each change, and the reviewer runs the per-fix **bite**: revert the change, confirm its test goes RED. That proves every *new* test catches its own bug. It says nothing about the rest of the tree slowly losing coverage over hundreds of waves. The coverage ratchet closes that gap. Total coverage can never fall below a stored baseline (`.autonomy-coverage.json`), and the baseline only ever ratchets up, so coverage holes cannot quietly pile up wave after wave.
+
+This is the drift layer; the bite is the assertion layer, and they ship together on purpose. Line coverage measures execution, not assertions (a suite with every assert deleted still scores 100%), so the ratchet is never a quality claim on its own. Pairing a coverage ratchet with a per-change bite as a built-in loop invariant is the part no mainstream coding agent ships today. The pieces exist as CI a human wires up, never inside the agent's own loop.
+
+It is opt-in. Set `gate.coverage` to a command that writes an Istanbul `coverage-summary.json`:
+
+```jsonc
+// autonomy.config.json
+"gate": { "coverage": "c8 --reporter=json-summary --reporter=text npm test" }
+```
+
+The reviewer then runs the bundled script, which blocks any wave that lowers coverage and bumps the floor on a real improvement:
+
+```bash
+node "$CLAUDE_PLUGIN_ROOT/hooks/coverage-ratchet.mjs"   # reads coverage/coverage-summary.json + .autonomy-coverage.json
+```
+
+The pure decision core lives in [`autonomy-loop/hooks/coverage-ratchet.mjs`](autonomy-loop/hooks/coverage-ratchet.mjs), unit-tested in [`autonomy-loop/test/coverage-ratchet.test.mjs`](autonomy-loop/test/coverage-ratchet.test.mjs). Leave `gate.coverage` empty to skip it.
 
 ## Cost
 

@@ -15,7 +15,9 @@
     "test": "<your test command, e.g. npm test>",
     "build": "<your build command, or empty if none>",
     "lint": "<your lint command, or empty if none>",
-    "comment_frozenInvariant": "What must stay BYTE-IDENTICAL unless a human re-baselines — golden/snapshot tests, a recorded API contract, etc. Empty if none.",
+    "comment_coverage": "Optional THIRD gate (drift guard). A command that runs tests with coverage and writes an Istanbul coverage-summary.json, e.g. 'c8 --reporter=json-summary --reporter=text npm test'. The reviewer then runs hooks/coverage-ratchet.mjs, which blocks any wave that lowers total coverage and ratchets the floor up on improvement. Empty = disabled. Pairs with the per-fix bite; coverage alone measures execution, not assertions.",
+    "coverage": "",
+    "comment_frozenInvariant": "What must stay BYTE-IDENTICAL unless a human re-baselines: golden/snapshot tests, a recorded API contract, etc. Empty if none.",
     "frozenInvariant": "snapshot/golden tests stay byte-identical",
     "envFidelity": ""
   },
@@ -26,9 +28,9 @@
     "Drift the frozen invariant without a human re-baseline.",
     "Secrets / deploy settings / key rotation.",
     "Destructive git (force-push, reset --hard, history rewrite).",
-    "Fabricating data (every number carries N+CI or 'building — N/30')."
+    "Fabricating data (every number carries N+CI or 'building, N/30')."
   ],
-  "honestyRule": "No fabricated numbers. Every rate carries N + a confidence interval, or says 'building — N/30'. A capability with no real data abstains visibly — never faked, never silently dead.",
+  "honestyRule": "No fabricated numbers. Every rate carries N + a confidence interval, or says 'building, N/30'. A capability with no real data abstains visibly, never faked, never silently dead.",
   "postToolUseTestHook": false,
   "_example": "Real-world shape: a Next.js app used workBranch 'agent-loop', a set of golden snapshot tests as the frozen invariant, and protectedPaths ['test/golden/']."
 }

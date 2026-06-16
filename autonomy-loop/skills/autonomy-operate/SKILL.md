@@ -10,7 +10,7 @@ Read `autonomy.config.json` for this repo's knobs. Read `STATE.md` first every s
 ## The non-negotiables
 1. **The baton is truth.** Work only when `LOOP-STATE.md` `turn:` is your role. Never infer the turn from the commit log.
 2. **Write everything down.** STATE.md / LOOP-STATE.md / REVIEW-FEEDBACK.md hold the thread — chat compacts and is lost. Never rely on memory.
-3. **The gate, every wave:** `gate.test` + the frozen invariant intact (`gate.frozenInvariant`) + `gate.build` + `gate.lint` on touched files. All green or REVERT — never commit red. If `gate.envFidelity` is set, the LOCAL gate must match CI (an env-naked pass is not proof CI is green).
+3. **The gate, every wave:** `gate.test` + the frozen invariant intact (`gate.frozenInvariant`) + `gate.build` + `gate.lint` on touched files. If `gate.coverage` is set, also run `node ${CLAUDE_PLUGIN_ROOT}/hooks/coverage-ratchet.mjs` after the coverage command: a coverage drop below the `.autonomy-coverage.json` floor is a RED gate (the third gate, the drift guard). All green or REVERT — never commit red. If `gate.envFidelity` is set, the LOCAL gate must match CI (an env-naked pass is not proof CI is green).
 4. **Honesty mandate** (`honestyRule`): no fabricated numbers; every rate carries N + CI or "building — N/30"; a capability with no real data ABSTAINS visibly — never faked, never silently dead.
 5. **Gate List** (`gateList`): both terminals STOP and ask the human for risky/irreversible actions. Never self-authorize one — escalate to `FOR-REVIEW.md`, set `turn: human`.
 6. **Push the work branch only**, never prod. (The gate-guard hook enforces this; don't fight it.)
