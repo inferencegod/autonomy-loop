@@ -1,6 +1,6 @@
 {
   "name": "autonomy-loop",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Two Claude Code terminals on one repo: a builder and an adversarial 5-lens reviewer pass a git baton, gated by a frozen-invariant safety hook and a no-fabrication discipline. Tune per-project via autonomy.config.json.",
   "author": { "name": "inferencegod" },
   "homepage": "https://github.com/inferencegod/autonomy-loop",
