@@ -57,7 +57,7 @@ A terminal works only when `turn:` is its name. That's what stops two writers co
 
 ## The gate (every wave, both terminals)
 `{{gate.test}}` + the **frozen invariant stays intact** (`{{gate.frozenInvariant}}`) + `{{gate.build}}`
-+ `{{gate.lint}}` on touched files. If `{{gate.coverage}}` is set, the reviewer also runs `node ${CLAUDE_PLUGIN_ROOT}/hooks/coverage-ratchet.mjs` as a third gate, so total coverage can never fall below the `.autonomy-coverage.json` floor. If `{{gate.envFidelity}}` is set, the test command runs through it
++ `{{gate.lint}}` on touched files. If `{{gate.coverage}}` is set, the reviewer also runs `node ${CLAUDE_PLUGIN_ROOT}/hooks/coverage-ratchet.mjs` as a third gate, so total coverage can never fall below the `.autonomy-coverage.json` floor. If `{{gate.patchTarget}}` is greater than 0, a fourth gate (`hooks/patch-coverage.mjs`) requires the wave's own changed lines to be tested, so new code cannot hide behind a flat global percent. If `{{gate.envFidelity}}` is set, the test command runs through it
 so the LOCAL gate matches CI/prod env. All green or REVERT — never commit red. Every new computation
 gets a PURE module + a RED-before/GREEN-after test, and the reviewer bite-checks that the test fails
 when the bug is reintroduced.

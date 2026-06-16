@@ -1,6 +1,14 @@
 # Changelog
 Format: Keep a Changelog · Versioning: SemVer.
 
+## [0.3.0] - 2026-06-16
+### Added
+- Patch coverage: a FOURTH gate, opt-in via `gate.patchTarget` greater than 0. It scores only the lines a wave changed, using the Istanbul `coverage-final.json`, so new untested code can no longer hide behind a flat or rising global percent (the ratchet's blind spot). Set the bar to 80 for standard or 100 to require every changed line tested so a single bare line cannot ride through. Self-contained Node (`hooks/patch-coverage.mjs`: pure `decidePatch` plus a diff parser plus an Istanbul reader), no external deps, 14 unit tests. Wired into the builder and reviewer gate. The coverage command must also emit `coverage-final.json` (add `--reporter=json`).
+
+## [0.2.1] - 2026-06-16
+### Fixed
+- Coverage ratchet hardening after an adversarial review of the gate itself. A baseline file with an invalid `lines` value now returns a hard error instead of silently re-seeding at a lower floor (the gate can no longer disarm itself on a corrupt baseline). Epsilon is clamped to a sane 0 to 5 point band, so an absurd or negative value cannot swallow a real drop or false-block a flat run. An empty or non-numeric measurement is an honest error, not a fake 0 percent regression. Six regression tests added for these cases (17 total, all green).
+
 ## [0.2.0] - 2026-06-16
 ### Added
 - Coverage ratchet: an opt-in THIRD gate (the drift guard), enabled by setting `gate.coverage` to a command that emits an Istanbul `coverage-summary.json` (for example `c8 --reporter=json-summary --reporter=text npm test`). Total line coverage can never fall below a stored baseline in `.autonomy-coverage.json`, and the baseline only ever ratchets up, so coverage holes cannot quietly accumulate wave after wave. It pairs with the per-fix bite: coverage measures execution, not assertions, so the ratchet is the drift layer, never a quality claim on its own.

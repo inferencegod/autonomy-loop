@@ -3,6 +3,6 @@
   "name": "autonomy-loop",
   "owner": { "name": "inferencegod" },
   "plugins": [
-    { "name": "autonomy-loop", "source": "./autonomy-loop", "description": "Two-terminal builder/reviewer autonomy loop: a frozen-invariant gate, an adversarial 5-lens reviewer with a per-fix bite, an opt-in coverage-drift ratchet, and an anti-fabrication discipline." }
+    { "name": "autonomy-loop", "source": "./autonomy-loop", "description": "Two-terminal builder/reviewer autonomy loop: a frozen-invariant gate, an adversarial 5-lens reviewer with a per-fix bite, opt-in coverage-drift and patch-coverage gates, and an anti-fabrication discipline." }
   ]
 }

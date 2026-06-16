@@ -15,8 +15,10 @@
     "test": "<your test command, e.g. npm test>",
     "build": "<your build command, or empty if none>",
     "lint": "<your lint command, or empty if none>",
-    "comment_coverage": "Optional THIRD gate (drift guard). A command that runs tests with coverage and writes an Istanbul coverage-summary.json, e.g. 'c8 --reporter=json-summary --reporter=text npm test'. The reviewer then runs hooks/coverage-ratchet.mjs, which blocks any wave that lowers total coverage and ratchets the floor up on improvement. Empty = disabled. Pairs with the per-fix bite; coverage alone measures execution, not assertions.",
+    "comment_coverage": "Optional THIRD gate (drift guard). A command that runs tests with coverage and writes an Istanbul coverage-summary.json, e.g. 'c8 --reporter=json-summary --reporter=json --reporter=text npm test'. The reviewer then runs hooks/coverage-ratchet.mjs, which blocks any wave that lowers total coverage and ratchets the floor up on improvement. Empty = disabled. Pairs with the per-fix bite; coverage alone measures execution, not assertions.",
     "coverage": "",
+    "comment_patchTarget": "FOURTH gate (patch coverage). 0 = off. 80 = standard. 100 = strict, every changed line of a wave must be tested so a single bare line cannot ride through behind a flat global percent. Requires gate.coverage to also emit coverage-final.json (add --reporter=json). The reviewer runs hooks/patch-coverage.mjs at this threshold.",
+    "patchTarget": 0,
     "comment_frozenInvariant": "What must stay BYTE-IDENTICAL unless a human re-baselines: golden/snapshot tests, a recorded API contract, etc. Empty if none.",
     "frozenInvariant": "snapshot/golden tests stay byte-identical",
     "envFidelity": ""

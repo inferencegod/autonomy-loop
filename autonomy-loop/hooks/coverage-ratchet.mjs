@@ -1,68 +1,53 @@
 #!/usr/bin/env node
-// autonomy-loop: coverage-ratchet (the THIRD gate, the drift guard).
+// autonomy-loop: coverage-ratchet (the THIRD gate, the drift guard). Hardened after an adversarial
+// red-team: a corrupt baseline can no longer silently re-seed at a lower floor, epsilon is clamped to
+// a sane band, and a missing/garbage measurement is an honest error, not a fake 0 percent.
 //
-// WHY: the builder writes a RED-before-green test for each new change, and the reviewer
-// runs the per-fix "bite" (revert the change, confirm its test goes RED). That proves each
-// NEW test catches its own bug. It says nothing about the rest of the tree slowly losing
-// coverage over hundreds of waves. This gate closes that gap: total coverage can never fall
-// below a stored baseline, and the baseline only ever ratchets UP. So coverage holes cannot
-// quietly accumulate wave after wave.
-//
-// HONESTY: line coverage measures EXECUTION, not assertions. A suite with every assert
-// deleted still scores 100%. So this ratchet is NEVER a quality claim on its own. It is the
-// drift layer; the bite is the assertion layer. Ship them together or not at all.
+// WHY: the per-fix bite proves each NEW test catches its bug. This stops the REST of the tree from
+// quietly losing coverage over hundreds of waves: total line coverage can never fall below a stored
+// baseline, and the baseline only ratchets UP. Pairs with the bite; coverage measures execution, not
+// assertions, so the ratchet is the drift layer, never a quality claim on its own.
 //
 // PURE CORE: decideRatchet() does no I/O and is unit-tested. The runner reads an Istanbul
-// coverage-summary.json (c8, nyc, and jest all emit it via the json-summary reporter) plus a
-// baseline file, then exits 0 (pass) or 1 (regression). On a genuine improvement it rewrites
-// the baseline. Wire it as one more gate command alongside test, build, and lint.
+// coverage-summary.json (c8 / nyc / jest emit it via json-summary) plus a baseline file, then exits
+// 0 (pass) / 1 (regression) / 2 (cannot verify).
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
+const EPS_MAX = 5; // a noise band wider than 5 percentage points is not noise, it is a hole
+const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+const NUM = (v, d) => { const n = Number(v); return Number.isFinite(n) ? n : d; };
 const PCT = (v) => {
+  if (v === null || v === undefined || typeof v === "boolean" || typeof v === "object") return null;
+  if (typeof v === "string" && v.trim() === "") return null;
   const n = Number(v);
   return Number.isFinite(n) && n >= 0 && n <= 100 ? n : null;
-};
-const NUM = (v, d) => {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : d;
 };
 
 // PURE decision core. measured/baseline = { lines, branches }. No clock, no I/O, deterministic.
 export function decideRatchet(measured = {}, baseline = null, opts = {}) {
-  const epsilon = NUM(opts.epsilon ?? baseline?.epsilon, 0.2); // noise band, percentage points
+  const epsilon = clamp(NUM(opts.epsilon ?? (baseline ? baseline.epsilon : undefined), 0.2), 0, EPS_MAX);
   const m = PCT(measured.lines);
   if (m === null) {
-    return { ok: false, action: "error", reason: "no measured line coverage (did the coverage command run?)" };
+    return { ok: false, action: "error", reason: "no usable measured line coverage (did the coverage command run and emit coverage-summary.json?)" };
   }
   const mBranches = PCT(measured.branches);
-  const floor = baseline == null ? null : PCT(baseline.lines);
 
+  if (baseline === null || baseline === undefined) {
+    return { ok: true, action: "seed", reason: `no baseline yet; seeding the floor at ${m}% lines`, newBaseline: { lines: m, branches: mBranches == null ? 0 : mBranches, epsilon } };
+  }
+  const floor = PCT(baseline.lines);
   if (floor === null) {
-    // first run: seed the floor, never block
-    return {
-      ok: true,
-      action: "seed",
-      reason: `no baseline yet; seeding the floor at ${m}% lines`,
-      newBaseline: { lines: m, branches: mBranches ?? 0, epsilon },
-    };
+    return { ok: false, action: "error", reason: "a baseline is present but its 'lines' value is invalid. Refusing to silently re-seed over it. Fix or delete .autonomy-coverage.json." };
   }
   if (m < floor - epsilon) {
-    return {
-      ok: false,
-      action: "regression",
-      reason: `line coverage fell to ${m}% from the ${floor}% floor (epsilon ${epsilon}pp). Add a test for the new code, or justify and re-baseline with owner sign-off.`,
-    };
+    return { ok: false, action: "regression", reason: `line coverage fell to ${m}% from the ${floor}% floor (epsilon ${epsilon}pp). Add a test for the new code, or justify and re-baseline with owner sign-off.` };
   }
   if (m > floor) {
-    const newBranches = Math.max(PCT(baseline.branches) ?? 0, mBranches ?? 0);
-    return {
-      ok: true,
-      action: "ratchet",
-      reason: `line coverage rose ${floor}% to ${m}%; raising the floor so it can never slide back`,
-      newBaseline: { lines: m, branches: newBranches, epsilon },
-    };
+    const baseBr = PCT(baseline.branches);
+    const newBranches = Math.max(baseBr == null ? 0 : baseBr, mBranches == null ? 0 : mBranches);
+    return { ok: true, action: "ratchet", reason: `line coverage rose ${floor}% to ${m}%; raising the floor so it can never slide back`, newBaseline: { lines: m, branches: newBranches, epsilon } };
   }
   return { ok: true, action: "hold", reason: `line coverage ${m}% holds at or above the ${floor}% floor` };
 }
@@ -71,14 +56,11 @@ export function decideRatchet(measured = {}, baseline = null, opts = {}) {
 function readJson(p) {
   try { return JSON.parse(readFileSync(p, "utf8")); } catch { return null; }
 }
-
-// Istanbul coverage-summary.json shape: { total: { lines: { pct }, branches: { pct } } }
 function extractTotals(summary) {
-  const t = summary?.total;
+  const t = summary && summary.total;
   if (!t) return {};
-  return { lines: t.lines?.pct, branches: t.branches?.pct };
+  return { lines: t.lines && t.lines.pct, branches: t.branches && t.branches.pct };
 }
-
 function main(argv) {
   const args = Object.fromEntries(
     argv.slice(2).map((a) => {
@@ -92,6 +74,11 @@ function main(argv) {
   const summary = readJson(summaryPath);
   if (!summary) {
     console.error(`[coverage-ratchet] no coverage summary at ${summaryPath}. Run coverage first, e.g.: c8 --reporter=json-summary <your test command>`);
+    process.exit(2);
+  }
+  // a baseline FILE that exists but will not parse must NOT be silently re-seeded over
+  if (existsSync(baselinePath) && readJson(baselinePath) === null) {
+    console.error(`[coverage-ratchet] baseline file ${baselinePath} exists but is unreadable. Refusing to seed over it. Fix or delete it.`);
     process.exit(2);
   }
   const measured = extractTotals(summary);
