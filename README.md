@@ -95,7 +95,7 @@ It is opt-in. Set `gate.coverage` to a command that writes an Istanbul `coverage
 
 ```jsonc
 // autonomy.config.json
-"gate": { "coverage": "c8 --reporter=json-summary --reporter=text npm test" }
+"gate": { "coverage": "c8 --reporter=json-summary --reporter=json --reporter=text npm test", "patchTarget": 100 }
 ```
 
 The reviewer then runs the bundled script, which blocks any wave that lowers coverage and bumps the floor on a real improvement:
@@ -105,6 +105,8 @@ node "$CLAUDE_PLUGIN_ROOT/hooks/coverage-ratchet.mjs"   # reads coverage/coverag
 ```
 
 The pure decision core lives in [`autonomy-loop/hooks/coverage-ratchet.mjs`](autonomy-loop/hooks/coverage-ratchet.mjs), unit-tested in [`autonomy-loop/test/coverage-ratchet.test.mjs`](autonomy-loop/test/coverage-ratchet.test.mjs). Leave `gate.coverage` empty to skip it.
+
+A fourth gate, patch coverage, is opt-in via `gate.patchTarget` (0 off, 80 standard, 100 strict). It scores only the lines a wave changed, so new untested code cannot hide behind a flat global percent, the ratchet's blind spot. It reuses the same coverage run (add `--reporter=json` so `coverage-final.json` is emitted) and lives in [`autonomy-loop/hooks/patch-coverage.mjs`](autonomy-loop/hooks/patch-coverage.mjs), unit-tested in [`autonomy-loop/test/patch-coverage.test.mjs`](autonomy-loop/test/patch-coverage.test.mjs). The ratchet stops the whole tree eroding; patch coverage proves the code each wave just wrote is itself tested.
 
 ## Cost
 
