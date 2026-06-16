@@ -35,21 +35,44 @@ export function decideRatchet(measured = {}, baseline = null, opts = {}) {
   const mBranches = PCT(measured.branches);
 
   if (baseline === null || baseline === undefined) {
-    return { ok: true, action: "seed", reason: `no baseline yet; seeding the floor at ${m}% lines`, newBaseline: { lines: m, branches: mBranches == null ? 0 : mBranches, epsilon } };
+    return { ok: true, action: "seed", reason: `no baseline yet; seeding the floor at ${m}% lines / ${mBranches == null ? 0 : mBranches}% branches`, newBaseline: { lines: m, branches: mBranches == null ? 0 : mBranches, epsilon } };
   }
   const floor = PCT(baseline.lines);
   if (floor === null) {
     return { ok: false, action: "error", reason: "a baseline is present but its 'lines' value is invalid. Refusing to silently re-seed over it. Fix or delete .autonomy-coverage.json." };
   }
+  // branch floor: tracked AND gated, symmetric with lines. Closes the gap where branch coverage
+  // rots under a flat line number because branches were never in the lines denominator.
+  const baseBr = PCT(baseline.branches);
+  if (baseline.branches !== undefined && baseline.branches !== null && baseBr === null) {
+    return { ok: false, action: "error", reason: "a baseline is present but its 'branches' value is invalid. Refusing to silently re-seed over it. Fix or delete .autonomy-coverage.json." };
+  }
+  const branchFloor = baseBr == null ? 0 : baseBr;
+  // a real branch floor with no branch measurement this run cannot be verified (fail closed, like lines)
+  if (branchFloor > 0 && mBranches === null) {
+    return { ok: false, action: "error", reason: `branch coverage is missing this run but the baseline floor is ${branchFloor}% branches. Emit branch coverage (e.g. c8/nyc with branch reporting) so drift can be verified.` };
+  }
+
+  // regression on EITHER metric
   if (m < floor - epsilon) {
     return { ok: false, action: "regression", reason: `line coverage fell to ${m}% from the ${floor}% floor (epsilon ${epsilon}pp). Add a test for the new code, or justify and re-baseline with owner sign-off.` };
   }
-  if (m > floor) {
-    const baseBr = PCT(baseline.branches);
-    const newBranches = Math.max(baseBr == null ? 0 : baseBr, mBranches == null ? 0 : mBranches);
-    return { ok: true, action: "ratchet", reason: `line coverage rose ${floor}% to ${m}%; raising the floor so it can never slide back`, newBaseline: { lines: m, branches: newBranches, epsilon } };
+  if (mBranches !== null && mBranches < branchFloor - epsilon) {
+    return { ok: false, action: "regression", reason: `branch coverage fell to ${mBranches}% from the ${branchFloor}% floor (epsilon ${epsilon}pp). A path was added or changed without testing both sides. Add a test, or justify and re-baseline with owner sign-off.` };
   }
-  return { ok: true, action: "hold", reason: `line coverage ${m}% holds at or above the ${floor}% floor` };
+
+  // ratchet: raise whichever floor rose. Lines and branches move independently, and only UP.
+  const lineRose = m > floor;
+  const branchRose = mBranches !== null && mBranches > branchFloor;
+  if (lineRose || branchRose) {
+    const newLines = Math.max(floor, m);
+    const newBranches = Math.max(branchFloor, mBranches == null ? branchFloor : mBranches);
+    const parts = [];
+    if (lineRose) parts.push(`lines ${floor}% to ${m}%`);
+    if (branchRose) parts.push(`branches ${branchFloor}% to ${mBranches}%`);
+    return { ok: true, action: "ratchet", reason: `coverage rose (${parts.join(", ")}); raising the floor so it can never slide back`, newBaseline: { lines: newLines, branches: newBranches, epsilon } };
+  }
+  return { ok: true, action: "hold", reason: `lines ${m}% / branches ${mBranches == null ? "n/a" : mBranches + "%"} hold at or above the ${floor}% / ${branchFloor}% floors` };
 }
 
 // ---- thin runner (only when invoked directly) ----
