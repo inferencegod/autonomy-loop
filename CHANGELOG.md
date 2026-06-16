@@ -1,6 +1,10 @@
 # Changelog
 Format: Keep a Changelog · Versioning: SemVer.
 
+## [0.3.1] - 2026-06-16
+### Changed
+- `autonomy-init` now offers the patch-coverage bar during setup (off / 80 / 100) and wires `gate.patchTarget` for you, so a fresh install discovers patch coverage the same way it discovers the ratchet. It notes that patch coverage scores only the lines a wave changes, so it applies at any repo coverage level (even a low-coverage repo can require every new line to be tested).
+
 ## [0.3.0] - 2026-06-16
 ### Added
 - Patch coverage: a FOURTH gate, opt-in via `gate.patchTarget` greater than 0. It scores only the lines a wave changed, using the Istanbul `coverage-final.json`, so new untested code can no longer hide behind a flat or rising global percent (the ratchet's blind spot). Set the bar to 80 for standard or 100 to require every changed line tested so a single bare line cannot ride through. Self-contained Node (`hooks/patch-coverage.mjs`: pure `decidePatch` plus a diff parser plus an Istanbul reader), no external deps, 14 unit tests. Wired into the builder and reviewer gate. The coverage command must also emit `coverage-final.json` (add `--reporter=json`).
