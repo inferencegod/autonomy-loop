@@ -1,6 +1,11 @@
 # Changelog
 Format: Keep a Changelog · Versioning: SemVer.
 
+## [0.3.2] - 2026-06-16
+### Fixed
+- Coverage ratchet now gates branch coverage, not just line coverage. Branch percentage was tracked and ratcheted but never checked against a floor, so branch coverage could rot under a flat line number (a new conditional whose else-arm is never tested would slip through while lines held). `decideRatchet` now applies a branch floor symmetric with lines: a drop past epsilon is a regression, an in-band dip holds without rewriting the baseline, lines and branches ratchet up independently, and the branch floor only moves up. A real branch floor with no branch measurement this run is an honest cannot-verify error rather than a silent pass, and a corrupt baseline `branches` value errors instead of disabling the gate. Seven branch-floor tests added (`test/branch-floor.test.mjs`); the existing case that encoded the old un-gated behavior was updated to a within-band dip. 24 ratchet tests total, all green.
+
+
 ## [0.3.1] - 2026-06-16
 ### Changed
 - `autonomy-init` now offers the patch-coverage bar during setup (off / 80 / 100) and wires `gate.patchTarget` for you, so a fresh install discovers patch coverage the same way it discovers the ratchet. It notes that patch coverage scores only the lines a wave changes, so it applies at any repo coverage level (even a low-coverage repo can require every new line to be tested).
