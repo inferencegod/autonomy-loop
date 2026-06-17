@@ -67,6 +67,16 @@ A minute of setup avoids the common failure modes:
 - **How to stop it.** Set `turn: human` in `LOOP-STATE.md` (or cancel the `/loop`). Both terminals exit on the next tick.
 - **It costs tokens.** Two agents looping continuously is the point. Tune `loopIntervalSec` up if you do not need a 10-minute cadence, and the built-in `breaker` (in the config) parks the loop after a hard epoch cap or a run of no-progress waves so it cannot burn unattended forever.
 
+## Upgrading from an earlier version
+
+When you update the plugin, the new commands and hooks come with it, but your repo's `autonomy.config.json` and `LOOP-STATE.md` are per-checkout and do not change on their own. After updating, run one command in your repo:
+
+```
+/autonomy-upgrade
+```
+
+It is safe and idempotent: it only ADDS the knobs and baton fields a newer version introduced (with sane defaults), never overwrites a value you set, and never resets a running baton. Then `/reload` the plugin in both terminals. Re-running `/autonomy-init` does the same top-up if a config already exists, so either path works. You do not need to hand-edit any JSON.
+
 ## Configure
 
 Copy `autonomy.config.example.json` -> `autonomy.config.json` at your repo root (it's gitignored — per-checkout). Key knobs:

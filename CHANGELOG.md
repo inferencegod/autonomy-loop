@@ -1,6 +1,12 @@
 # Changelog
 Format: Keep a Changelog · Versioning: SemVer.
 
+## [0.5.1] - 2026-06-17
+### Added
+- A real upgrade path for existing installs. Updating the plugin brings the new commands and hooks, but a repo's `autonomy.config.json` and `LOOP-STATE.md` are per-checkout and did not gain the new knobs, so an existing user silently ran without the breaker or self-mutation and nothing told them. New `/autonomy-upgrade` command plus `hooks/migrate-config.mjs` top up only the missing keys (`breaker`, `gate.selfMutate`, the self-protecting `protectedPaths` entries) and baton fields (`epoch`, `no-progress-epochs`, `last-tree-sha`) with safe defaults. It is idempotent, never overwrites a value you set, and never resets a running baton. Pure `migrateConfig` plus `migrateLoopState` core with 12 unit tests.
+- `/autonomy-init` is now upgrade-aware: re-running it on a repo that already has a config or baton tops them up via the migrator instead of skipping the config and overwriting `LOOP-STATE.md` (which used to reset the baton to `turn: human`). Either `/autonomy-upgrade` or a re-run of `/autonomy-init` migrates safely.
+- The reviewer now detects an un-migrated install (no `epoch` field or no `breaker` block) and tells the operator once, plainly, to run `/autonomy-upgrade`, instead of silently misbehaving. A README "Upgrading from an earlier version" section documents the one command. No hand-editing of JSON.
+
 ## [0.5.0] - 2026-06-17
 ### Added
 - The bite is now a real gate, not just a reviewer instruction. `hooks/bite.mjs` mechanizes it: given a wave's fix and the new test, it reverts only the source change in a throwaway detached git worktree (keeping the test in place), reruns the test, and requires an assertion failure to pass. A test that still passes when the fix is reverted catches nothing and fails the gate. Validated against mutation-testing and regression-test-selection prior art: an exit code is not treated as a valid RED (an assertion failure is distinguished from a build/collect error or a timeout, so a fix that no longer compiles cannot masquerade as a caught bug), a flake guard requires the same failure N times in a row (default 3), the test must be green on the fixed code first, and a test that does not execute the reverted code is an honest cannot-verify rather than a pass. Fail-closed exit codes: 0 pass, 1 stayed-green, 2 cannot-verify. Pure `decideBite` plus `classifyOutcome` core with 17 unit tests; wired into the reviewer gate. No external deps.
