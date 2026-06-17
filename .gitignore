@@ -3,3 +3,7 @@ node_modules/
 .DS_Store
 autonomy.config.json
 .claude/settings.local.json
+launch/remotion/
+cinematic-remotion.skill
+ziOlYpoS
+*.backup.*
