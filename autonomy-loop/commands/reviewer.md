@@ -32,7 +32,10 @@ still can't reach unanimous PASS, stop iterating — append the deadlock + each 
 to `FOR-REVIEW.md`, set `turn: human`, EXIT. An unconverged panel escalates; it never loops forever
 and never rubber-stamps to break the tie.
 
-CIRCUIT-BREAKER (cross-wave runaway guard; you are the SOLE writer of these baton fields): each tick
+CIRCUIT-BREAKER (cross-wave runaway guard; you are the SOLE writer of these baton fields): if `LOOP-STATE.md`
+has no `epoch` field or the config has no `breaker` block, this install predates v0.5: SKIP the breaker this
+tick and tell the human ONCE, plainly, to run `/autonomy-upgrade` (it tops up the config and baton safely,
+without resetting anything). Otherwise, each tick
 compute `git rev-parse HEAD^{tree}`. If it equals `last-tree-sha`, the wave changed nothing real, so
 increment `no-progress-epochs`; otherwise reset it to 0 and store the new tree. Increment `epoch` once
 per reviewed wave. If `epoch` reaches `{{breaker.maxEpochs}}`, or `no-progress-epochs` reaches
