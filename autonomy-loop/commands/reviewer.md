@@ -32,10 +32,25 @@ still can't reach unanimous PASS, stop iterating — append the deadlock + each 
 to `FOR-REVIEW.md`, set `turn: human`, EXIT. An unconverged panel escalates; it never loops forever
 and never rubber-stamps to break the tie.
 
+CIRCUIT-BREAKER (cross-wave runaway guard; you are the SOLE writer of these baton fields): each tick
+compute `git rev-parse HEAD^{tree}`. If it equals `last-tree-sha`, the wave changed nothing real, so
+increment `no-progress-epochs`; otherwise reset it to 0 and store the new tree. Increment `epoch` once
+per reviewed wave. If `epoch` reaches `{{breaker.maxEpochs}}`, or `no-progress-epochs` reaches
+`{{breaker.maxNoProgressEpochs}}`, or a set `{{breaker.maxBudgetUsd}}` is exceeded, the loop is stuck or
+spent: append the tripped counter and why to `FOR-REVIEW.md`, set `turn: human`, EXIT. This trip is a
+real breaker, the sanctioned exception to no-stand-down, never a backlog stand-down.
+
 Before any PASS, write **"RED-TEAM THE OPPOSITE"**: argue why this is wrong / why a number is
 fabricated / how it breaks — pass only if that argument fails. Then a grounding pass: every claim
-cites file:line or a fetched URL (no memory-trust). **Bite-check the regression test**: re-introduce
-the bug → confirm it goes RED → restore byte-identical. (A bite that produces no RED is a no-op.)
+cites file:line or a fetched URL (no memory-trust). **Bite-check the regression test (mechanized)**: run
+`node ${CLAUDE_PLUGIN_ROOT}/hooks/bite.mjs --fix=<the one commit that carries the source fix> --test="<command that runs ONLY the new test>"`.
+For `--fix`, name the single commit whose source change the new test pins (the bite keeps the test in place and
+reverts only that commit's source). If the wave split the fix and its test across commits, point `--fix` at the
+fix commit; if you cannot name exactly one source-bearing commit, squash the wave or treat it as cannot-verify.
+It reverts that source change in a throwaway detached worktree, reruns the test, and **exit 0 (a stable assertion
+RED) is the ONLY pass**: a stayed-green (exit 1) or a cannot-verify (exit 2: unviable / flaky / baseline-not-green /
+wrong test / merge commit) both bounce the wave back. Never read exit 2 as a skippable tooling hiccup, a bite that
+cannot verify is a failed gate. A bite that produces no RED is a no-op.
 
 3. FIX what you SAFELY can (bugs, missing tests, polish, perf, consistency) — gate each fix, commit
    small, `git push origin {{workBranch}}`. Do NOT fix Gate items — only flag.

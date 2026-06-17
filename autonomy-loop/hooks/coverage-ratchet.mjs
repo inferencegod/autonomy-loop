@@ -12,8 +12,9 @@
 // coverage-summary.json (c8 / nyc / jest emit it via json-summary) plus a baseline file, then exits
 // 0 (pass) / 1 (regression) / 2 (cannot verify).
 
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { dirname } from "node:path";
 
 const EPS_MAX = 5; // a noise band wider than 5 percentage points is not noise, it is a hole
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
@@ -110,6 +111,7 @@ function main(argv) {
 
   console.log(`[coverage-ratchet] ${r.action.toUpperCase()}: ${r.reason}`);
   if (r.newBaseline && !args["dry-run"]) {
+    mkdirSync(dirname(baselinePath), { recursive: true });
     writeFileSync(baselinePath, JSON.stringify({ ...r.newBaseline, updatedAt: new Date().toISOString() }, null, 2) + "\n");
     console.log(`[coverage-ratchet] baseline written to ${baselinePath}`);
   }

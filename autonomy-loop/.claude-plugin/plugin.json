@@ -1,9 +1,9 @@
 {
   "name": "autonomy-loop",
-  "version": "0.3.2",
+  "version": "0.5.0",
   "description": "Two Claude Code terminals on one repo: a builder and an adversarial 5-lens reviewer pass a git baton, gated by a frozen-invariant safety hook and a no-fabrication discipline. Tune per-project via autonomy.config.json.",
   "author": { "name": "inferencegod" },
   "homepage": "https://github.com/inferencegod/autonomy-loop",
   "license": "MIT",
-  "keywords": ["claude-code","plugin","code-review","agent","autonomy","reviewer","coverage","drift","patch-coverage","golden-test","ultrathink"]
+  "keywords": ["claude-code","plugin","code-review","agent","autonomy","reviewer","coverage","drift","patch-coverage","golden-test","bite","mutation-testing","ultrathink"]
 }
