@@ -19,12 +19,16 @@
     "coverage": "",
     "comment_patchTarget": "FOURTH gate (patch coverage). 0 = off. 80 = standard. 100 = strict, every changed line of a wave must be tested so a single bare line cannot ride through behind a flat global percent. Requires gate.coverage to also emit coverage-final.json (add --reporter=json). The reviewer runs hooks/patch-coverage.mjs at this threshold.",
     "patchTarget": 0,
+    "comment_selfMutate": "Self-mutation self-check (builder b1, opt-in). When true, before handoff the builder runs hooks/mutate.mjs, which mutates only this wave's changed lines and reports any mutant the tests fail to kill (a survivor = a test that ran the line but asserted nothing about it). Uses gate.test as the command. Advisory by default (the equivalent-mutant problem is undecidable), so the builder strengthens the assertion rather than auto-reverting. The builder's upstream complement to the reviewer's bite.",
+    "selfMutate": false,
     "comment_frozenInvariant": "What must stay BYTE-IDENTICAL unless a human re-baselines: golden/snapshot tests, a recorded API contract, etc. Empty if none.",
     "frozenInvariant": "snapshot/golden tests stay byte-identical",
     "envFidelity": ""
   },
-  "comment_protectedPaths": "Edits AND bash-writes (rm/mv/cp/redirect) to these are blocked by the hook. Substrings.",
-  "protectedPaths": ["test/__snapshots__/", "test/golden/"],
+  "comment_breaker": "Cross-epoch runaway guard, read and written by the reviewer ONLY. maxEpochs = hard cap on reviewed waves before the loop parks to FOR-REVIEW + turn:human. maxNoProgressEpochs = consecutive waves whose HEAD tree-SHA did not change (churn/busywork) before parking. maxBudgetUsd = optional cumulative spend cap (0 = off). A trip is a real circuit-breaker: the sanctioned exception to no-stand-down.",
+  "breaker": { "maxEpochs": 50, "maxNoProgressEpochs": 3, "maxBudgetUsd": 0 },
+  "comment_protectedPaths": "Edits AND bash-writes (rm/mv/cp/redirect/sed -i) to these are blocked by the hook. Substrings. Includes the loop's own control plane (config, baseline, hooks) so a wave cannot edit-away or delete its own gates. '.autonomy-coverage.json' is safe to protect: the ratchet writes it via Node fs, not an Edit/Write tool or a shell redirect, so the guard never blocks the legitimate write.",
+  "protectedPaths": ["test/__snapshots__/", "test/golden/", "autonomy.config.json", ".autonomy-coverage.json", "autonomy-loop/hooks/"],
   "gateList": [
     "Push / fast-forward the prodBranch.",
     "Drift the frozen invariant without a human re-baseline.",
