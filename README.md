@@ -87,7 +87,7 @@ What it **cannot** do — be honest with yourself:
 
 ## Coverage ratchet (the third gate)
 
-The builder writes a RED-before-green test for each change, and the reviewer runs the per-fix **bite**: revert the change, confirm its test goes RED. That proves every *new* test catches its own bug. It says nothing about the rest of the tree slowly losing coverage over hundreds of waves. The coverage ratchet closes that gap. Total coverage can never fall below a stored baseline (`.autonomy-coverage.json`), and the baseline only ever ratchets up, so coverage holes cannot quietly pile up wave after wave.
+The builder writes a RED-before-green test for each change, and the reviewer runs the per-fix **bite**: revert the change, confirm its test goes RED. That proves every *new* test catches its own bug. It says nothing about the rest of the tree slowly losing coverage over hundreds of waves. The coverage ratchet closes that gap. Line and branch coverage each sit on their own floor in the stored baseline (`.autonomy-coverage.json`), floored independently and only ever ratcheting up, so holes cannot quietly pile up wave after wave. A new conditional whose else-arm is never tested is caught by the branch floor even when the line number holds.
 
 This is the drift layer; the bite is the assertion layer, and they ship together on purpose. Line coverage measures execution, not assertions (a suite with every assert deleted still scores 100%), so the ratchet is never a quality claim on its own. Pairing a coverage ratchet with a per-change bite as a built-in loop invariant is the part no mainstream coding agent ships today. The pieces exist as CI a human wires up, never inside the agent's own loop.
 
