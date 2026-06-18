@@ -134,15 +134,18 @@ function main(argv) {
   let repoRoot, parent, changedFiles;
   try {
     repoRoot = sh("git rev-parse --show-toplevel").trim();
-    parent = sh(`git rev-parse ${fixSha}^`).trim();
-    // a merge commit has a second parent; diffing against ^1 only would revert the wrong slice, so refuse it.
-    let isMerge = false;
-    try { sh(`git rev-parse --verify --quiet ${fixSha}^2`); isMerge = true; } catch { /* not a merge */ }
-    if (isMerge) {
+    // Use ~1 (parent), NEVER a bare ^ : on Windows execSync runs through cmd.exe, where ^ is the escape
+    // character, so `<sha>^` loses the caret, resolves to the commit itself, and the diff comes back empty
+    // (a false "no source files / cannot-verify" on every wave). ~ is not special to cmd.exe.
+    parent = sh(`git rev-parse ${fixSha}~1`).trim();
+    // a merge commit has 2+ parents; reverting against the first parent only would revert the wrong slice.
+    // Detect it caret-free: `rev-list --parents -n 1` prints the commit then each parent, space-separated.
+    const parentCount = sh(`git rev-list --parents -n 1 ${fixSha}`).trim().split(/\s+/).length - 1;
+    if (parentCount >= 2) {
       console.log("[bite] CANNOT-VERIFY: the fix is a merge commit; point --fix at a single non-merge commit that carries the source change.");
       process.exit(2);
     }
-    changedFiles = sh(`git diff --name-only ${fixSha}^ ${fixSha}`).trim().split("\n").filter(Boolean);
+    changedFiles = sh(`git diff --name-only ${fixSha}~1 ${fixSha}`).trim().split("\n").filter(Boolean);
   } catch (e) {
     console.error(`[bite] cannot resolve the fix commit ${fixSha} or its parent: ${e && e.message}`);
     process.exit(2);

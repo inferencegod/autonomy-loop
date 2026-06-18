@@ -1,6 +1,10 @@
 # Changelog
 Format: Keep a Changelog · Versioning: SemVer.
 
+## [0.5.2] - 2026-06-18
+### Fixed
+- The mechanized bite was broken on Windows, caught by a live dogfood loop running it for real. `bite.mjs` shells out through `execSync`, which on Windows runs `cmd.exe`, where `^` is the escape character. The internal `git rev-parse <sha>^` and `git diff <sha>^ <sha>` lost the caret, so `<sha>^` resolved to the commit itself, the diff came back empty, and every bite falsely reported "the wave changed no source files" (cannot-verify, exit 2). The runner now uses `<sha>~1` for the parent (tilde is not special to cmd.exe) and detects merge commits caret-free via `git rev-list --parents`, so the bite runs on Windows, macOS, and Linux. Behavior is identical on POSIX (`~1` and `^` both mean the first parent); only the Windows breakage is removed.
+
 ## [0.5.1] - 2026-06-17
 ### Added
 - A real upgrade path for existing installs. Updating the plugin brings the new commands and hooks, but a repo's `autonomy.config.json` and `LOOP-STATE.md` are per-checkout and did not gain the new knobs, so an existing user silently ran without the breaker or self-mutation and nothing told them. New `/autonomy-upgrade` command plus `hooks/migrate-config.mjs` top up only the missing keys (`breaker`, `gate.selfMutate`, the self-protecting `protectedPaths` entries) and baton fields (`epoch`, `no-progress-epochs`, `last-tree-sha`) with safe defaults. It is idempotent, never overwrites a value you set, and never resets a running baton. Pure `migrateConfig` plus `migrateLoopState` core with 12 unit tests.
