@@ -7,17 +7,52 @@ import { migrateConfig, migrateLoopState } from "../hooks/migrate-config.mjs";
 
 // ---- migrateConfig ----
 
-test("adds the breaker block when missing", () => {
+test("adds the breaker block when missing (incl. the v0.6 plan fields)", () => {
   const { config, added } = migrateConfig({ gate: {} });
-  assert.deepEqual(config.breaker, { maxEpochs: 50, maxNoProgressEpochs: 3, maxBudgetUsd: 0 });
+  assert.deepEqual(config.breaker, { maxEpochs: 50, maxNoProgressEpochs: 3, maxBudgetUsd: 0, maxPlanEpochs: 40, maxPlanNoProgress: 3 });
   assert.ok(added.includes("breaker"));
 });
 
-test("NEVER overwrites an existing breaker value", () => {
+test("tops up missing breaker subkeys WITHOUT changing existing values", () => {
   const mine = { maxEpochs: 9, maxNoProgressEpochs: 1, maxBudgetUsd: 5 };
-  const { config, added } = migrateConfig({ gate: {}, breaker: mine });
-  assert.deepEqual(config.breaker, mine);
-  assert.ok(!added.includes("breaker"));
+  const { config, added } = migrateConfig({ gate: {}, breaker: { ...mine } });
+  assert.equal(config.breaker.maxEpochs, 9);            // existing values preserved
+  assert.equal(config.breaker.maxNoProgressEpochs, 1);
+  assert.equal(config.breaker.maxBudgetUsd, 5);
+  assert.equal(config.breaker.maxPlanEpochs, 40);       // v0.6 plan fields topped up
+  assert.equal(config.breaker.maxPlanNoProgress, 3);
+  assert.ok(!added.includes("breaker"));                // the block existed, not re-created whole
+  assert.ok(added.includes("breaker.maxPlanEpochs"));
+});
+
+test("adds the roles block (default off = v0.5) when missing", () => {
+  const { config, added } = migrateConfig({ gate: {} });
+  assert.deepEqual(config.roles, { research: false, planner: false });
+  assert.ok(added.includes("roles"));
+});
+
+test("preserves an existing roles value and tops up a missing role key", () => {
+  const { config, added } = migrateConfig({ gate: {}, roles: { planner: true } });
+  assert.equal(config.roles.planner, true);     // not overwritten
+  assert.equal(config.roles.research, false);   // topped up
+  assert.ok(!added.includes("roles"));
+  assert.ok(added.includes("roles.research"));
+});
+
+test("adds models.researcher/planner ONLY when a models block exists", () => {
+  const withModels = migrateConfig({ models: { builder: "opus" } });
+  assert.equal(withModels.config.models.researcher, "sonnet");
+  assert.equal(withModels.config.models.planner, "opus");
+  assert.ok(withModels.added.includes("models.researcher"));
+  const noModels = migrateConfig({ gate: {} });
+  assert.equal(noModels.config.models, undefined); // never invents a models block
+});
+
+test("preserves an existing models.planner override", () => {
+  const { config, added } = migrateConfig({ models: { planner: "sonnet" } });
+  assert.equal(config.models.planner, "sonnet");    // not overwritten
+  assert.equal(config.models.researcher, "sonnet"); // topped up
+  assert.ok(!added.includes("models.planner"));
 });
 
 test("adds gate.selfMutate (default off) when gate exists without it", () => {
