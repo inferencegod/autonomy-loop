@@ -31,6 +31,16 @@ flowchart LR
     R4 -. every tool call .-> GATE
 ```
 
+## Three shapes: the plan lane (v0.6)
+
+The 2-terminal loop above is the default and it **self-feeds**: when the backlog drains, the Builder invents its own next move (MODE A). v0.6 adds an optional **feeder in front of that self-feeding loop**, so the ideas it builds are researched wide and gated before they cost a build cycle. One config flag (`roles`) picks the shape:
+
+- **2 terminals (default).** Builder + Reviewer, byte-for-byte v0.5. The Builder self-feeds via MODE A on idle.
+- **3 terminals (`roles.planner`, recommended).** A **Planner** joins. It researches across lenses (product gaps, competitors, marketing, SEO, pricing, UX), then **grills** one spec into a detailed doc with clear, falsifiable **acceptance criteria** and a goal-ready build prompt. The Reviewer screens it (sourced? has an acceptance test? scoped? risk tier? real ROI?) and parks the risky ones for your GO before the Builder builds it. MODE A stays as the fallback floor.
+- **4 terminals (`roles.research` too, power mode).** Research splits into its own terminal feeding an idea pool on a parallel upstream baton, for a deep, always-full spec queue.
+
+The keystone rule: **every spec ships a falsifiable acceptance test.** That is the ground-truth signal the bite and the 5-lens panel check against; a planning layer without it is just a faster way to be wrong, so the plan gate requires it. Non-code research (battlecards, positioning, SEO, pricing) is drafted to `GROWTH.md` and parked for you to publish.
+
 ## Why you might want it
 
 - **The reviewer is adversarial by construction.** Its only win condition is finding fault. It re-runs the gate from scratch (never trusts the builder's "tests pass"), spawns role-specialized critics, and must argue *why the change is wrong* before it's allowed to approve.
@@ -54,7 +64,7 @@ claude plugin install autonomy-loop
 #    Terminal 2 (in the review worktree):  claude  ->  /autonomy-loop:reviewer  ->  /loop 600
 ```
 
-`/loop 600` = self-schedule every 600s (10 min). Commands are namespaced `/autonomy-loop:<command>`.
+`/loop 600` = self-schedule every 600s (10 min). Commands are namespaced `/autonomy-loop:<command>`. With the v0.6 plan lane on, add a third terminal: `claude` -> `/autonomy-loop:planner` -> `/loop 600` (and a fourth, `/autonomy-loop:researcher`, for the 4-terminal power mode). See [Three shapes](#three-shapes-the-plan-lane-v06).
 
 ## Operate (first run)
 

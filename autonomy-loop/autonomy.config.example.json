@@ -9,7 +9,9 @@
     "_comment": "Cost control. Reviewer CRITICS default cheap; only the escalation Judge is Opus. See README Cost.",
     "builder": "opus",
     "reviewerJudge": "opus",
-    "reviewerCritics": "sonnet"
+    "reviewerCritics": "sonnet",
+    "researcher": "sonnet",
+    "planner": "opus"
   },
   "gate": {
     "test": "<your test command, e.g. npm test>",
@@ -26,7 +28,7 @@
     "envFidelity": ""
   },
   "comment_breaker": "Cross-epoch runaway guard, read and written by the reviewer ONLY. maxEpochs = hard cap on reviewed waves before the loop parks to FOR-REVIEW + turn:human. maxNoProgressEpochs = consecutive waves whose HEAD tree-SHA did not change (churn/busywork) before parking. maxBudgetUsd = optional cumulative spend cap (0 = off). A trip is a real circuit-breaker: the sanctioned exception to no-stand-down.",
-  "breaker": { "maxEpochs": 50, "maxNoProgressEpochs": 3, "maxBudgetUsd": 0 },
+  "breaker": { "maxEpochs": 50, "maxNoProgressEpochs": 3, "maxBudgetUsd": 0, "maxPlanEpochs": 40, "maxPlanNoProgress": 3 },
   "comment_protectedPaths": "Edits AND bash-writes (rm/mv/cp/redirect/sed -i) to these are blocked by the hook. Substrings. Includes the loop's own control plane (config, baseline, hooks) so a wave cannot edit-away or delete its own gates. '.autonomy-coverage.json' is safe to protect: the ratchet writes it via Node fs, not an Edit/Write tool or a shell redirect, so the guard never blocks the legitimate write.",
   "protectedPaths": ["test/__snapshots__/", "test/golden/", "autonomy.config.json", ".autonomy-coverage.json", "autonomy-loop/hooks/"],
   "gateList": [
@@ -37,6 +39,8 @@
     "Fabricating data (every number carries N+CI or 'building, N/30')."
   ],
   "honestyRule": "No fabricated numbers. Every rate carries N + a confidence interval, or says 'building, N/30'. A capability with no real data abstains visibly, never faked, never silently dead.",
+  "comment_roles": "v0.6 plan lane. Both false = classic 2-terminal self-feeding loop (Builder MODE A on idle, byte-for-byte v0.5). planner=true = the recommended 3-terminal shape (a Planner grills research into gated specs and feeds the Builder; MODE A becomes the fallback floor). research=true as well = the 4-terminal power mode (a dedicated Researcher fills the idea pool on the PLAN-STATE baton). models.researcher/planner and breaker.maxPlan* apply only when enabled.",
+  "roles": { "research": false, "planner": false },
   "postToolUseTestHook": false,
   "_example": "Real-world shape: a Next.js app used workBranch 'agent-loop', a set of golden snapshot tests as the frozen invariant, and protectedPaths ['test/golden/']."
 }

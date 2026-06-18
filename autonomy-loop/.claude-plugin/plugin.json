@@ -1,7 +1,7 @@
 {
   "name": "autonomy-loop",
-  "version": "0.5.2",
-  "description": "Two Claude Code terminals on one repo: a builder and an adversarial 5-lens reviewer pass a git baton, gated by a frozen-invariant safety hook and a no-fabrication discipline. Tune per-project via autonomy.config.json.",
+  "version": "0.6.0",
+  "description": "Claude Code terminals on one repo pass a git baton: a planner that grills research into gated specs, a builder, and an adversarial 5-lens reviewer. Backed by a frozen-invariant safety hook, a mechanized bite, and a no-fabrication discipline. 2, 3, or 4 terminals, tuned per-project via autonomy.config.json.",
   "author": { "name": "inferencegod" },
   "homepage": "https://github.com/inferencegod/autonomy-loop",
   "license": "MIT",
