@@ -8,3 +8,9 @@ cinematic-remotion.skill
 ziOlYpoS
 *.backup.*
 launch/COMPETITIVE-ROADMAP.md
+.autonomy-coverage.json
+.autonomy-verify-shadow.log
+presence/
+*.lease.json
+FOR-REVIEW.md
+REVIEW-FEEDBACK.md

@@ -60,6 +60,60 @@ RED) is the ONLY pass**: a stayed-green (exit 1) or a cannot-verify (exit 2: unv
 wrong test / merge commit) both bounce the wave back. Never read exit 2 as a skippable tooling hiccup, a bite that
 cannot verify is a failed gate. A bite that produces no RED is a no-op.
 
+## v0.7.0 gates (RIGOR ON by default; speed is the opt-out)
+These run on a CODE-REVIEW tick ONLY, AFTER the mechanized bite-check above. Per the defaults philosophy the
+rigor gates are ON by default (a gate hidden behind an off-by-default flag is, for almost every user, a gate
+that does not exist, and claiming a toggled-off feature publicly is dishonest). The speed opt-out
+(`{{speed.optOut}}`) is the ONLY thing that lightens them, and it lightens ONLY plain additive waves, never
+money-path or irreversible ones. Do NOT let any step here weaken or bypass the existing bite, the 5-lens panel,
+the coverage ratchet, patch-coverage, the circuit-breaker, or the v0.6 baton hand-back. These ADD bounded
+checks on top, they replace nothing.
+
+1. VERIFY-GATE (reads `{{gate.verifyGate}}`; default `govern`). This is the complementary-gate ROUTER
+   (`hooks/verify-gate.mjs`): it classifies the wave's fix commit and dispatches regressions to the golden-revert
+   bite and brand-new code to the greenfield mutation-bite. It is FAIL-CLOSED (it never returns exit 0 without a
+   recorded killed-mutant or a clean RED), so the worst it can do is block a wave, never silently pass one.
+   - `govern` (DEFAULT) -> run `node ${CLAUDE_PLUGIN_ROOT}/hooks/verify-gate.mjs --mode=govern --fix=<the one
+     source-bearing commit> --test="<command that runs ONLY the new test>"`; the ROUTER governs this wave's verify
+     verdict (a non-zero routed exit bounces the wave back exactly like a failed bite). The greenfield path needs
+     `{{gate.coverage}}` set so it can score covered lines; without coverage a greenfield wave is cannot-verify (a
+     safe bounce, not a pass).
+   - `shadow` -> a watch mode: run with `--mode=shadow`, LOG its would-route / would-decide (a JSONL row to
+     `.autonomy-verify-shadow.log`) while the EXISTING golden-revert bite still GOVERNS; note disagreements in
+     `REVIEW-FEEDBACK.md` but do not let the router change pass/fail.
+   - `off` -> SKIP entirely; the mechanized bite you already ran governs (pre-0.7 behavior).
+
+2. ORACLE-STRENGTH (runs only AFTER a gate PASS, on the wave's NEW test). First classify the wave with
+   `mpid.classifyChange(changedFiles)` (from `hooks/mpid.mjs`); a tier of `money-path` or `irreversible`
+   (i.e. `park` true) is a MONEY-PATH / IRREVERSIBLE wave, `additive` is a PLAIN wave. Then evaluate the test:
+   - assert-classify (`hooks/assert-classify.mjs`, `decideAssertionGate` over the test's ADDED lines): the W1-W5
+     weak-assertion detector. W1-W5 = weak (fails the floor); require >= S1.
+   - atsg (`hooks/atsg.mjs`, `decideAcceptanceStrength`): the acceptance test must KILL >= 1 non-trivial mutant
+     of the spec'd source (reuse `hooks/mutate.mjs` to generate the mutants); `pass` 0 = kills, 1 = pins nothing
+     (too weak), 2 = cannot-verify.
+   BINDING by default (rigor on); the speed opt-out is the only relaxation:
+   - MONEY-PATH / IRREVERSIBLE wave -> always BIND: a weak oracle (assert-classify not >= S1) OR a no-kill
+     acceptance test (atsg `pass` != 0) FAILS the review and bounces the wave back. The LLM cannot downgrade this,
+     and the speed opt-out NEVER lightens a money-path wave.
+   - PLAIN additive wave -> BIND too by default (`{{speed.optOut}}` = false): a weak oracle or a no-kill test
+     fails the wave here as well. ONLY when `{{speed.optOut}}` is true do these go ADVISORY on a plain wave (note
+     the weakness in `REVIEW-FEEDBACK.md`, do not fail) -- that is the explicit speed/cost opt-out.
+   Default (`speed.optOut=false`) -> the oracle-strength gates BIND on every wave (rigor-on): a wave that passes
+   the base gate but ships a test that pins nothing now correctly bounces back.
+
+3. CONVERGENCE (the bounded-retry guard; replaces nothing). Keep a per-task wave history of
+   `{ passed, signature }` where `signature` = the normalized identity of the failing assertion this wave
+   (null/empty when unparseable; convergence-core treats that as a failed wave, fail-closed). Each reviewed wave,
+   call `convergence-core.decideConvergence({ waves })` (from `hooks/convergence-core.mjs`) and act on the rung:
+   - rung 0 (continue) -> nothing; proceed to steps 3-6 as usual.
+   - rung 1 (rescope) -> hand to the PLANNER to re-scope (if `roles.planner`, flip `turn: planner` per the
+     hand-back in step 6; else write the narrower next move to `pending-for-builder`).
+   - rung 2 (escalate-model) -> escalate to the stronger model ({{models.reviewerJudge}}) for ONE wave.
+   - rung 3 (park) -> PARK to `FOR-REVIEW.md` with `turn: human`; stop iterating on this task.
+   This is bounded retry on oscillation / attempt-budget; it is additive to the STALL-BREAKER and CIRCUIT-BREAKER
+   above and never rubber-stamps. (Default config still ships this guard; it engages only on a real non-converging
+   task, so a healthy wave reaches step 3 below unchanged.)
+
 3. FIX what you SAFELY can (bugs, missing tests, polish, perf, consistency) — gate each fix, commit
    small, `git push origin {{workBranch}}`. Do NOT fix Gate items — only flag.
 4. For anything unfixed: append findings to `REVIEW-FEEDBACK.md`, severity P0/P1/P2, with the

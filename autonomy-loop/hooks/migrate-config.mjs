@@ -33,6 +33,11 @@ export function migrateConfig(input = {}) {
   if (cfg.gate && typeof cfg.gate === "object" && cfg.gate.selfMutate === undefined) {
     cfg.gate.selfMutate = false; added.push("gate.selfMutate");
   }
+  // v0.8 provision-or-refuse: the preflight refuses auto-promotion unless prod has a no-bypass ruleset.
+  // Default true is fail-closed (demand it); only an existing value (incl. a deliberate false) is preserved.
+  if (cfg.gate && typeof cfg.gate === "object" && cfg.gate.requireProdProtection === undefined) {
+    cfg.gate.requireProdProtection = true; added.push("gate.requireProdProtection");
+  }
   // v0.6 plan lane: the roles block (default off), and the planner/researcher model knobs (only if models exists)
   if (cfg.roles === undefined) { cfg.roles = { ...DEFAULT_ROLES }; added.push("roles"); }
   else if (cfg.roles && typeof cfg.roles === "object") {

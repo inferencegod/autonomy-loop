@@ -67,6 +67,18 @@ test("preserves an existing gate.selfMutate=true", () => {
   assert.ok(!added.includes("gate.selfMutate"));
 });
 
+test("v0.8: adds gate.requireProdProtection (default true) when gate exists without it", () => {
+  const { config, added } = migrateConfig({ gate: { test: "npm test" } });
+  assert.equal(config.gate.requireProdProtection, true);
+  assert.ok(added.includes("gate.requireProdProtection"));
+});
+
+test("v0.8: preserves a deliberate gate.requireProdProtection=false (never re-demands it)", () => {
+  const { config, added } = migrateConfig({ gate: { requireProdProtection: false } });
+  assert.equal(config.gate.requireProdProtection, false);
+  assert.ok(!added.includes("gate.requireProdProtection"));
+});
+
 test("adds required protectedPaths without dropping the user's own", () => {
   const { config, added } = migrateConfig({ gate: {}, protectedPaths: ["test/golden/"] });
   assert.ok(config.protectedPaths.includes("test/golden/"));

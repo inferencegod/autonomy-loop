@@ -1,0 +1,23 @@
+{
+  "id": "054",
+  "family": "fresh-url-taint",
+  "note": "clean fact, fresh url, refetch MISMATCH -> PARK",
+  "expect": {
+    "specEmitted": true,
+    "promotion": "PARK"
+  },
+  "fetched": {
+    "content": "The library added a streaming API in the latest minor release.",
+    "sourceUrl": "https://untrusted.example/page",
+    "fetchedAt": "2026-06-18T00:00:00Z",
+    "contentHash": "corpus-054"
+  },
+  "spec": {
+    "citesFreshUrl": true,
+    "fetchedAt": "2026-06-18T00:00:00Z",
+    "refetchHashMatches": false
+  },
+  "opts": {
+    "nowMs": 1781740860000
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "_comment": "v0.8 PROVISION half: the no-bypass prod-branch ruleset template. USAGE in /autonomy-init: substitute {prodBranch} with cfg.prodBranch, strip every _comment* key (GitHub schema-validates rule/parameter objects, so do NOT POST comment keys), then POST: gh api --method POST -H 'X-GitHub-Api-Version: 2022-11-28' repos/{owner}/{repo}/rulesets --input <stripped-file>. WHY each field: enforcement=active makes it bind now; bypass_actors=[] is EMPTY on purpose so the rule binds EVERYONE including repo admins and the agent token (the agent token is not on the bypass list, so the agent credential cannot reach prodBranch directly), and that is exactly what flips the preflight probe prodProtected to true. RULE CHOICE IS LOAD-BEARING: rules are pull_request + non_fast_forward + deletion. Use pull_request, NOT 'Restrict updates' (the update rule). Restrict-updates blocks ALL direct ref updates for non-bypass actors, which also blocks the PR-merge fast-forward and breaks the promote-by-PR flow. pull_request gates the merge behind a required review WITHOUT blocking the merge itself. The preflight probeProdProtected requires BOTH pull_request AND non_fast_forward to be present; this template provides both.",
+  "name": "autonomy-loop prod protection",
+  "target": "branch",
+  "enforcement": "active",
+  "bypass_actors": [],
+  "conditions": {
+    "ref_name": {
+      "include": ["refs/heads/{prodBranch}"],
+      "exclude": []
+    }
+  },
+  "rules": [
+    {
+      "type": "pull_request",
+      "parameters": {
+        "required_approving_review_count": 1,
+        "require_last_push_approval": true,
+        "dismiss_stale_reviews_on_push": false,
+        "require_code_owner_review": false,
+        "required_review_thread_resolution": false,
+        "allowed_merge_methods": ["merge", "squash", "rebase"]
+      }
+    },
+    { "type": "non_fast_forward" },
+    { "type": "deletion" }
+  ]
+}

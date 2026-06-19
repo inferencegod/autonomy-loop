@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+# sandbox/launch-sandboxed - launch an autonomy-loop terminal INSIDE Anthropic's sandbox-runtime (srt),
+# with the OS-level write + egress boundary that the preflight's sandboxLive() probe attests to. This is
+# the SHIPPED sandbox tier: a thin wrapper over `srt` (native sandboxing: sandbox-exec on macOS, bubblewrap
+# on Linux; no container required). It does three things and nothing clever:
+#   1. allowWrite = the workspace, MINUS the control plane (autonomy.config.json + hooks/ + protectedPaths)
+#      expressed as srt denyWrite, so a bypassed gate inside the box still cannot edit-away its own gates.
+#   2. allowedDomains = an egress allowlist, which also bounds the researcher role's web-fetch reach.
+#   3. exports AUTONOMY_SANDBOX=1 (+ AUTONOMY_SANDBOX_TIER=srt) so sandbox-detect.mjs reports the boundary.
+#
+# THE ONA FINDING (agents disable their own sandbox): the generated srt settings file is written OUTSIDE
+# allowWrite (default: $HOME/.config/autonomy-loop/, not under the repo), and srt additionally hard-denies
+# writes to .git/hooks, .claude/commands, .claude/agents, .mcp.json even within an allowed path. So the
+# agent in the box cannot rewrite the boundary that contains it. Keep it that way: never move the settings
+# file under the workspace, never add the repo root to a writable settings path.
+#
+# House convention: fail-closed (any setup error aborts BEFORE launch; we never start an unsandboxed shell
+# as a fallback), no external deps beyond srt + node (already required by the plugin), NO em dashes.
+#
+# Usage:
+#   sandbox/launch-sandboxed [-- <command...>]
+#     no command -> launches an interactive $SHELL inside the sandbox (the agent terminal)
+#     -- <cmd>   -> runs <cmd> inside the sandbox instead
+#   Env knobs:
+#     AUTONOMY_WORKSPACE   workspace root to allow writes to            (default: git toplevel, else PWD)
+#     AUTONOMY_SRT_SETTINGS path for the generated srt settings file    (default: $HOME/.config/autonomy-loop/srt-settings.json)
+#     AUTONOMY_CONFIG      path to autonomy.config.json                 (default: $AUTONOMY_WORKSPACE/autonomy.config.json)
+#     AUTONOMY_EXTRA_DOMAINS space/comma list of extra allowed domains  (appended to the egress allowlist)
+set -euo pipefail
+IFS=$'\n\t'
+
+err() { printf '[launch-sandboxed] ERROR: %s\n' "$*" >&2; exit 1; }
+log() { printf '[launch-sandboxed] %s\n' "$*" >&2; }
+
+# --- 0. preflight: srt + node must exist, or we abort (fail-closed, no unsandboxed fallback) -----------
+command -v srt  >/dev/null 2>&1 || err "srt not found. Install: npm install -g @anthropic-ai/sandbox-runtime (Linux also needs bubblewrap socat ripgrep)."
+command -v node >/dev/null 2>&1 || err "node not found (required to read autonomy.config.json)."
+
+# --- 1. resolve workspace + control-plane paths --------------------------------------------------------
+WORKSPACE="${AUTONOMY_WORKSPACE:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+[ -d "$WORKSPACE" ] || err "workspace '$WORKSPACE' is not a directory."
+CONFIG="${AUTONOMY_CONFIG:-$WORKSPACE/autonomy.config.json}"
+
+# The settings file lives OUTSIDE the workspace by default so the sandboxed agent cannot edit it.
+SETTINGS="${AUTONOMY_SRT_SETTINGS:-$HOME/.config/autonomy-loop/srt-settings.json}"
+case "$SETTINGS" in
+  "$WORKSPACE"/*) err "refusing: srt settings path is INSIDE the workspace ('$SETTINGS'). The agent could disable its own sandbox. Put it outside allowWrite." ;;
+esac
+mkdir -p "$(dirname "$SETTINGS")"
+
+# --- 2. assemble the srt settings via node (reads protectedPaths + prodBranch from the config) ---------
+# We compute denyWrite = control plane: autonomy.config.json + the whole hooks/ dir + every protectedPaths
+# entry. allowWrite = ["."] (the workspace, srt runs with cwd=workspace), so denyWrite carves the gates
+# back out. allowedDomains = a conservative egress allowlist (forge + package registries + Anthropic API),
+# extended by AUTONOMY_EXTRA_DOMAINS. This same allowlist is the ceiling on the researcher web-fetch.
+GENERATED_SETTINGS="$(
+  AUT_CONFIG="$CONFIG" AUT_EXTRA_DOMAINS="${AUTONOMY_EXTRA_DOMAINS:-}" node "$(dirname "$0")/srt-settings.gen.mjs"
+)" || err "failed to generate srt settings (see node error above)."
+printf '%s\n' "$GENERATED_SETTINGS" > "$SETTINGS"
+log "wrote srt settings (outside workspace): $SETTINGS"
+
+# --- 3. launch inside srt, with the boundary markers exported -----------------------------------------
+# AUTONOMY_SANDBOX is read by hooks/sandbox-detect.mjs -> preflight probe.sandboxLive. We export it into
+# the sandboxed process environment so the attestation rides with the agent, not just this wrapper.
+export AUTONOMY_SANDBOX=1
+export AUTONOMY_SANDBOX_TIER=srt
+export SANDBOX_BACKEND=srt   # second, independent breadcrumb sandbox-detect honors
+
+# Strip a leading `--` so callers can pass `launch-sandboxed -- npm test`.
+if [ "${1:-}" = "--" ]; then shift; fi
+
+cd "$WORKSPACE"
+if [ "$#" -eq 0 ]; then
+  log "launching interactive ${SHELL:-/bin/bash} sandboxed at $WORKSPACE (egress + control-plane writes restricted)."
+  exec srt --settings "$SETTINGS" "${SHELL:-/bin/bash}"
+else
+  log "launching sandboxed command: $* (at $WORKSPACE)"
+  exec srt --settings "$SETTINGS" "$@"
+fi

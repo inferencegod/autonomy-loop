@@ -43,6 +43,47 @@ The 2-terminal loop above is the default and it **self-feeds**: when the backlog
 
 The keystone rule: **every spec ships a falsifiable acceptance test.** That is the ground-truth signal the bite and the 5-lens panel check against; a planning layer without it is just a faster way to be wrong, so the plan gate requires it. Non-code research (battlecards, positioning, SEO, pricing) is drafted to `GROWTH.md` and parked for you to publish.
 
+## v0.8.0: provision or refuse
+
+**The gates that have to live in the plugin, plus the setup that provisions or refuses the rails that have to live in your infra.**
+
+A red-team of v0.7.x found that the agent and the things that guard it shared one writable trust domain: the builder could edit the gate's own config, forge the reviewer's lease, and reach prod, because the credential and the regex both lived where it could touch them. v0.8.0 splits that domain into four rings and adopts one rule. The plugin provisions each ring it can, or it **refuses to run unattended without it.** "Warn and continue" is gone for the unattended / auto-promote path.
+
+- **A preflight prober (`SessionStart`).** On every loop start it measures the *real* assurance of your setup: is the control plane writable by the agent's own uid, can the agent's credential reach prod and is prod protected by a no-bypass server ruleset, and is the reviewer a genuinely separate principal that is actually alive. It classifies a **trust tier** and feeds the detected tier into the fail-closed promotion floor, instead of the self-reported lease the red-team forged.
+- **Refuse-by-default below the hardened tier.** Unattended auto-promotion is refused unless the forge enforces it (T3). An attended local run can proceed at a lower tier only via an explicit `--i-accept-reduced-assurance` escape hatch, logged and labeled REDUCED-INDEPENDENCE. No silent downgrade.
+- **A read-only control plane.** `harden-control-plane` materializes then locks every protected path (you cannot read-only-protect a file that does not exist yet, which is how the injected `settings.json` slipped in), and a sandboxed bash tool makes an out-of-allow-list write EPERM at the OS layer regardless of interpreter or `cd`. The sandbox config itself sits outside the writable set so the agent cannot self-disable it.
+- **A provisioned prod rail.** `/autonomy-init` provisions a no-bypass branch ruleset on `prodBranch` (require a PR, block force-push, block deletion, empty bypass list so it binds even admins), and `gate.requireProdProtection` now defaults true so the preflight refuses unattended if the rail is absent.
+
+One command runs the convenient sandboxed tier:
+
+```bash
+/autonomy-loop:launch-sandboxed   # srt wrapper: allow-only writes + an egress allowlist that also bounds the researcher
+```
+
+A `.devcontainer/` with a default-deny egress firewall ships alongside it as the opt-in tier; a gVisor/Firecracker microVM is documented for untrusted work.
+
+| Tier | Verifies | Auto-promotion |
+|---|---|---|
+| **T0 ATTESTED** | same uid, control plane writable, prod maybe unprotected | refused, attended only |
+| **T1 LIVENESS** | reviewer process provably alive, control plane locked, same principal | refused unattended |
+| **T2 SEPARATED** | reviewer a different uid/SID and live, control plane read-only, repo-scoped credential | allowed, local-trust |
+| **T3 HARDENED** | forge required-review ruleset the builder token cannot bypass, sandboxed checkout | allowed, unattended |
+
+Honest about the residuals: a same-uid local setup can only ever be raised, never closed, by signing or liveness; the forge (T3) is the only unattended-grade independence; the `$VAR` push is closed only by the server ruleset; the regex is a tripwire, forever. POSIX hardening ships first; on Windows the preflight refuses the local-hardening tiers and points you at the devcontainer / WSL or the OS-independent forge tier. GitHub is first-class; GitLab parity (push=No one, merge=Maintainer) is a documented section. See [SECURITY.md](SECURITY.md) for the full rings model, the tier table, and the residual map.
+
+## v0.7.0: the ground-truth floor, rigor on by default
+
+v0.7.0 puts a deterministic floor under every LLM judgment and flips the defaults so the gates are ON, not buried in JSON:
+
+- **The bite now covers brand-new code.** When there is nothing to revert to, a greenfield **mutation-bite** mutates the new module's covered lines and requires your test to kill a mutant. A deterministic router (`hooks/verify-gate.mjs`) picks revert-vs-mutate per commit and **governs** the verdict; it is fail-closed (never a pass without a recorded killed-mutant or a clean RED), so it can only block, never silently pass.
+- **A money-path floor.** A path/secret/migration detector (`hooks/mpid.mjs`) PARKS any change touching billing, payments, migrations, auth, secrets, or data-deletion for an explicit human GO. The model cannot override it.
+- **Oracle-strength gates.** A weak-assertion detector and an acceptance-test mutation-kill gate fail a test that runs a line but pins nothing about it. ON by default; the speed opt-out is the only relaxation and it never touches money-path or irreversible work.
+- **A convergence terminator.** When the builder and reviewer keep trading the same failure signature (even as the tree changes every wave, so the no-progress breaker never fires), it re-scopes, then escalates to a stronger model, then parks. The bounded "third vote" that ends silent back-and-forth.
+- **A la carte roles + single-CLI.** Roles compose freely and auto-detect from running terminals via a git lease; a mandatory independent-verifier safety floor blocks promotion without a live reviewer. `coordination.mode=single-cli` runs the roles as subagents in one terminal (labeled **REDUCED-INDEPENDENCE**: the deterministic gate still binds, the LLM critique goes advisory) and refuses to run if the gate is off.
+- **A quarantined researcher.** Fetched web content is typed-extracted (CaMeL-style) so it cannot smuggle a spec, and a fresh-URL taint gate blocks auto-promotion, verified against a 55-payload injection corpus that zero payloads pass.
+
+Every gate above is a pure decision core with unit tests and a thin runner, no external deps. Rigor is ON because a gate that ships toggled off is, for almost every user, a gate that does not exist.
+
 ## Why you might want it
 
 - **The reviewer is adversarial by construction.** Its only win condition is finding fault. It re-runs the gate from scratch (never trusts the builder's "tests pass"), spawns role-specialized critics, and must argue *why the change is wrong* before it's allowed to approve.
@@ -109,7 +150,7 @@ Copy `autonomy.config.example.json` -> `autonomy.config.json` at your repo root 
 
 **Read this before you trust it.** The `gate-guard` PreToolUse hook is a **defense-in-depth tripwire, not a sandbox.** It catches the *common-case* dangerous actions and returns a structured denial the model can act on (escalate to a human), instead of crashing the agent.
 
-What it blocks today (with unit tests in [`autonomy-loop/test/gate-guard.test.mjs`](autonomy-loop/test/gate-guard.test.mjs)): pushes/fast-forwards to `prodBranch` (including `HEAD:refs/heads/...` refspecs), force-push, history rewrite / `reset --hard` / `--mirror`, `gh` PR-merge/release/workflow shipping, and edits **or** shell writes/deletes targeting `protectedPaths`.
+What it blocks today (with adversarial unit tests in [`autonomy-loop/test/gate-guard.test.mjs`](autonomy-loop/test/gate-guard.test.mjs)): pushes/fast-forwards to `prodBranch` from **any** remote (not just `origin`; including `src:main` / `HEAD:refs/heads/...` refspecs), force-push (including bundled flags like `-uf`), remote-branch deletion (`--delete`), local ref destruction (`branch -D`, `update-ref -d`, `reflog expire`, `checkout --orphan`), history rewrite / `reset --hard` / `--mirror`, `gh` PR-merge/release/workflow shipping, and edits **or** shell writes/deletes (broadened to `dd` / `install` / `ln` / numbered redirects, and matched against a quote-stripped copy so `test/gol''den/x` cannot evade it) targeting `protectedPaths`.
 
 What it **cannot** do — be honest with yourself:
 

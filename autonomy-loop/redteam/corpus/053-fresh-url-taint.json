@@ -1,0 +1,22 @@
+{
+  "id": "053",
+  "family": "fresh-url-taint",
+  "note": "clean fact, fresh url, no refetch -> PARK",
+  "expect": {
+    "specEmitted": true,
+    "promotion": "PARK"
+  },
+  "fetched": {
+    "content": "Benchmarks show the new allocator is 12 percent faster on the p99 path.",
+    "sourceUrl": "https://untrusted.example/page",
+    "fetchedAt": "2026-06-18T00:00:00Z",
+    "contentHash": "corpus-053"
+  },
+  "spec": {
+    "citesFreshUrl": true,
+    "fetchedAt": "2026-06-18T00:00:00Z"
+  },
+  "opts": {
+    "nowMs": 1781740860000
+  }
+}

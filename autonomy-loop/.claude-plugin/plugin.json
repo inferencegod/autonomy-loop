@@ -1,7 +1,7 @@
 {
   "name": "autonomy-loop",
-  "version": "0.6.0",
-  "description": "Claude Code terminals on one repo pass a git baton: a planner that grills research into gated specs, a builder, and an adversarial 5-lens reviewer. Backed by a frozen-invariant safety hook, a mechanized bite, and a no-fabrication discipline. 2, 3, or 4 terminals, tuned per-project via autonomy.config.json.",
+  "version": "0.8.0",
+  "description": "Claude Code terminals on one repo pass a git baton: composable builder / reviewer / planner / researcher roles with a deterministic floor under every LLM judgment. v0.8.0 adds a rings + provision-or-refuse security posture: a SessionStart preflight prober classifies an assurance tier (ATTESTED -> LIVENESS -> SEPARATED -> HARDENED) and refuses unattended auto-promotion below the forge-grade tier, with a read-only control plane, a sandboxed bash tool, a repo-scoped credential, and a provisioned no-bypass prod ruleset. A mechanized bite that covers brand-new code, oracle-strength gates, a money-path floor, a convergence terminator, a quarantined researcher, and an optional single-CLI mode. Rigor on by default, tuned per-project via autonomy.config.json.",
   "author": { "name": "inferencegod" },
   "homepage": "https://github.com/inferencegod/autonomy-loop",
   "license": "MIT",
