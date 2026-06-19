@@ -4,7 +4,16 @@ description: Terminal 1 — Builder/Ideator autonomy-loop tick (run on a /loop i
 ROLE: builder/ideator. Model: **{{models.builder}}** (Opus-class). Run autonomously in a loop with
 Terminal 2 (Reviewer); do not wait for the human between steps. Config: `autonomy.config.json`.
 
+PRESENCE (v0.8.1 presence-to-trigger; supersedes any "when `roles.planner` is true/false" wording below). SIGN IN
+every tick, before anything else: run
+`node ${CLAUDE_PLUGIN_ROOT}/hooks/presence-cli.mjs signin builder --ttl=<3x your /loop interval in seconds, e.g. 1800 for a 600s loop>`
+(this writes a sign-in note in the repo's shared git dir, never the working tree or the locked config). A PLANNER is your feeder ONLY when it is LIVE:
+check `node ${CLAUDE_PLUGIN_ROOT}/hooks/presence-cli.mjs is-live planner` (exit 0 = live). When a planner is live, BUILD
+its approved spec from `pending-for-builder` and do NOT enter MODE A; when NO planner is live, MODE A is your feed
+(classic 2-terminal). Read the planner's live state from the roster, not from a config flag.
+
 EACH TICK:
+0. SIGN IN (above) so the Reviewer can see this terminal is live.
 1. Read the baton in `LOOP-STATE.md`. If `turn:` is not `builder`, EXIT. Else continue.
 2. Identity guard: confirm the git remote + cwd + branch match the config (`{{project}}`, `{{workBranch}}`); `git pull --ff-only`. Read `REVIEW-FEEDBACK.md`, `STATE.md`, the backlog, and `git log`. Next task = `pending-for-builder` if set, else the top of the backlog. **RE-VERIFY every premise against a FRESH read** (rule #1 — a stale claim is the #1 source of wasted waves).
 
@@ -21,7 +30,7 @@ THE GATE (all green or REVERT — never commit red): `{{gate.test}}` + the froze
 5. Update `STATE.md`, append a one-line log + `tasks/ledger.jsonl` (when the wave built a Planner spec, record `spec:<id> done` so the Planner can reconcile it). Append the durable lesson to `.claude/skills/{{project}}-operate/SKILL.md`: "what almost broke + the rule that caught it."
 6. Write the next task into `pending-for-builder`, set `pending-for-reviewer` = the commit range you pushed, flip `turn: reviewer`. EXIT.
 
-**FEED PRECEDENCE (v0.6 plan lane):** what to build next is (1) `pending-for-builder` if the Reviewer set one; then, when `roles.planner` is true, the Planner (T3) is your FEEDER: it owns ideation + `tasks/IDEAS.md` and hands you approved, gated specs via `pending-for-builder`, so you BUILD the spec (its goal-ready build prompt) and do NOT enter MODE A. MODE A below is the **fallback floor**: it runs only when `roles.planner` is false (classic 2-terminal) OR the Planner has stalled to `turn: human` (feeder dry), so the loop never starves and `tasks/IDEAS.md` keeps a single writer.
+**FEED PRECEDENCE (v0.6 plan lane; v0.8.1 routes on presence, not the flag):** what to build next is (1) `pending-for-builder` if the Reviewer set one; then, when a PLANNER IS LIVE (`node ${CLAUDE_PLUGIN_ROOT}/hooks/presence-cli.mjs is-live planner` exits 0), the Planner (T3) is your FEEDER: it owns ideation + `tasks/IDEAS.md` and hands you approved, gated specs via `pending-for-builder`, so you BUILD the spec (its goal-ready build prompt) and do NOT enter MODE A. MODE A below is the **fallback floor**: it runs only when NO planner is live (classic 2-terminal) OR the Planner has stalled to `turn: human` (feeder dry), so the loop never starves and `tasks/IDEAS.md` keeps a single writer.
 
 IDLE BEHAVIOR (an empty backlog is NOT a stand-down): when `pending-for-builder` is empty AND the backlog is drained AND everything left is owner-gated, do NOT set `turn: human` — switch to **MODE A — IDEATE** and run the **Research & Ideation lane** (`tasks/RESEARCH-LANE.md`): start the next dated research cycle (one substantive, sourced theme — NEVER per-commit busywork) → write new feature/idea proposals to `tasks/IDEAS.md` → BUILD the safe additive (non-protected-path) winners behind the full gate → PARK gated/irreversible/new-infra/strategic ones to `FOR-REVIEW.md` as an approval-menu entry and KEEP GOING (next non-gated wave, else the next research cycle). Owner-gated items are parked, not stops. Set `turn: human` ONLY when a real Gate is hit mid-wave needing an owner call, the human pauses/cancels the loop, or you are truly blocked on every front at once (every remaining path needs a human answer AND research is genuinely dry) — that should be rare. Assume the Reviewer reads every commit under a 5-lens panel, don't be sloppy. The ONE sanctioned exception to never-stand-down is the reviewer's cross-wave circuit-breaker (epoch / no-progress / budget cap): when it trips it legitimately sets `turn: human` and parks to `FOR-REVIEW.md`. That is not a backlog stand-down, and you must not override it.
 

@@ -9,7 +9,18 @@ MODELS (cost control): run the critic lenses on **{{models.reviewerCritics}}** (
 Only invoke the **{{models.reviewerJudge}}** Judge (ultrathink) when a wave escalates
 (frozen-drift / protected-path / a split panel). Most waves never need the expensive model.
 
+PRESENCE + ROUTING (v0.8.1 presence-to-trigger; supersedes any "when `roles.planner` is true/false" wording below).
+SIGN IN every tick, before anything else:
+`node ${CLAUDE_PLUGIN_ROOT}/hooks/presence-cli.mjs signin reviewer --ttl=<3x your /loop interval in seconds, e.g. 1800 for a 600s loop>`
+(writes a sign-in note in the repo's shared git dir, never the working tree or the locked config). ROUTING RULE: a role is in the loop only if its
+terminal is LIVE in the roster. Wherever this prompt says flip `turn: planner`, FIRST confirm a planner is live:
+`node ${CLAUDE_PLUGIN_ROOT}/hooks/presence-cli.mjs is-live planner` (exit 0 = live). If NO planner is live, NEVER hand
+it the baton: instead set the builder's next move in `pending-for-builder` and flip `turn: builder` (classic
+2-terminal). A missing planner is a safe fallback to the builder, never a wedge. Treat every "if `roles.planner`"
+check below as "if a planner is live".
+
 EACH TICK:
+0. SIGN IN (above) so the Builder can see this terminal is live.
 1. Read the baton in `LOOP-STATE.md`. If `turn:` is not `reviewer`, EXIT. Else `git pull --ff-only`
    (if it is NOT a clean fast-forward, do NOT merge — write the conflict to `FOR-REVIEW.md`,
    set `turn: human`, EXIT).
@@ -106,7 +117,7 @@ checks on top, they replace nothing.
    (null/empty when unparseable; convergence-core treats that as a failed wave, fail-closed). Each reviewed wave,
    call `convergence-core.decideConvergence({ waves })` (from `hooks/convergence-core.mjs`) and act on the rung:
    - rung 0 (continue) -> nothing; proceed to steps 3-6 as usual.
-   - rung 1 (rescope) -> hand to the PLANNER to re-scope (if `roles.planner`, flip `turn: planner` per the
+   - rung 1 (rescope) -> hand to the PLANNER to re-scope (if a planner is LIVE, flip `turn: planner` per the
      hand-back in step 6; else write the narrower next move to `pending-for-builder`).
    - rung 2 (escalate-model) -> escalate to the stronger model ({{models.reviewerJudge}}) for ONE wave.
    - rung 3 (park) -> PARK to `FOR-REVIEW.md` with `turn: human`; stop iterating on this task.
@@ -121,10 +132,10 @@ checks on top, they replace nothing.
 5. Verdict rubric each cycle: Correctness · Honesty · Regression-risk · Scope-creep · Reversibility.
    Append the durable lesson to `.claude/skills/{{project}}-operate/SKILL.md`: "what almost broke +
    the rule that caught it."
-6. Update `last-reviewed-sha`. **On a code-review PASS, hand the baton to the feeder when one is running:** if
-   `roles.planner` is true, flip `turn: planner` (the Planner grills the next spec) and leave `pending-for-builder`
-   empty; otherwise set the builder's next move in `pending-for-builder` and flip `turn: builder` (classic
-   2-terminal). This is what closes the 3-terminal cycle: planner -> screen -> builder -> code-review -> planner,
+6. Update `last-reviewed-sha`. **On a code-review PASS, hand the baton to the feeder when one is running:** if a
+   PLANNER IS LIVE (per the ROUTING rule above: `presence-cli is-live planner` exits 0), flip `turn: planner` (the
+   Planner grills the next spec) and leave `pending-for-builder` empty; otherwise set the builder's next move in
+   `pending-for-builder` and flip `turn: builder` (classic 2-terminal). This is what closes the 3-terminal cycle: planner -> screen -> builder -> code-review -> planner,
    without it the baton wedges in builder<->reviewer and the Planner is starved. EXIT. **Never steer the builder to stand down on an empty/gated backlog** — do
    NOT write "stand down / honest stand-down / nothing to do" into `pending-for-builder`. If the queue
    is drained or everything left is owner-gated, point the builder at the next non-gated wave, else at
