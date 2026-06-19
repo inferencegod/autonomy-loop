@@ -1,0 +1,30 @@
+{
+  "_comment": "TEMPLATE for @anthropic-ai/sandbox-runtime (srt). sandbox/launch-sandboxed GENERATES the live copy from autonomy.config.json into $HOME/.config/autonomy-loop/srt-settings.json (OUTSIDE the workspace, so the sandboxed agent cannot edit its own boundary: the Ona finding). This file is the human-readable reference shape; regenerate the live one with sandbox/srt-settings.gen.mjs, do not hand-widen. allowWrite is the workspace; denyWrite carves out the control plane (config + hooks/ + protectedPaths); allowedDomains is BOTH the egress allowlist AND the ceiling on the researcher web-fetch. A bare 'github.com' apex is intentionally NOT allowed (push/exfil surface); scope to api/lfs/codeload.",
+  "network": {
+    "allowedDomains": [
+      "api.anthropic.com",
+      "registry.npmjs.org",
+      "*.npmjs.org",
+      "api.github.com",
+      "codeload.github.com",
+      "*.githubusercontent.com",
+      "lfs.github.com",
+      "pypi.org",
+      "files.pythonhosted.org"
+    ],
+    "deniedDomains": [],
+    "allowLocalBinding": false
+  },
+  "filesystem": {
+    "denyRead": ["~"],
+    "allowRead": ["."],
+    "allowWrite": ["."],
+    "denyWrite": [
+      "autonomy.config.json",
+      "hooks/",
+      "test/__snapshots__/",
+      "test/golden/"
+    ]
+  },
+  "allowAllUnixSockets": false
+}

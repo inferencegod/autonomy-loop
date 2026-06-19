@@ -1,0 +1,37 @@
+{
+  "//": "autonomy-loop devcontainer tier (SHIPPED). A default-deny network sandbox modeled on Anthropic's claude-code reference (.devcontainer + init-firewall.sh). This is the container alternative to the srt tier for users who want a full OS boundary. It sets AUTONOMY_SANDBOX=1 so hooks/sandbox-detect.mjs reports the boundary to the preflight, runs an iptables/ipset default-deny egress firewall at start, and mounts the control plane READ-ONLY so the agent in the box cannot edit-away its own gates (the Ona finding: agents disable their own sandbox). The firewall script lives under .devcontainer/ which is mounted read-only, so the agent cannot disable it from inside.",
+  "name": "autonomy-loop-sandbox",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
+
+  "//runArgs": "NET_ADMIN + NET_RAW are required for the init firewall to program iptables/ipset. They are scoped to THIS container, not the host.",
+  "runArgs": [
+    "--cap-add=NET_ADMIN",
+    "--cap-add=NET_RAW"
+  ],
+
+  "//containerEnv": "AUTONOMY_SANDBOX=1 is the attestation hooks/sandbox-detect.mjs reads. _TIER is for the preflight banner only.",
+  "containerEnv": {
+    "AUTONOMY_SANDBOX": "1",
+    "AUTONOMY_SANDBOX_TIER": "devcontainer"
+  },
+
+  "//mounts": "Mount the control plane READ-ONLY into the same workspace path. consistency=cached is fine; the point is ro. This is the container analog of srt denyWrite: the gate's own config + hooks cannot be rewritten from inside the box. Adjust the source if your repo is not at the default workspaceFolder.",
+  "mounts": [
+    "source=${localWorkspaceFolder}/hooks,target=${containerWorkspaceFolder}/hooks,type=bind,readonly",
+    "source=${localWorkspaceFolder}/autonomy.config.json,target=${containerWorkspaceFolder}/autonomy.config.json,type=bind,readonly"
+  ],
+
+  "//postCreateCommand": "Make the firewall script executable and ensure its tooling is present.",
+  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y iptables ipset dnsutils aggregate jq curl && sudo chmod +x .devcontainer/init-firewall.sh",
+
+  "//postStartCommand": "Program the default-deny firewall on every container start. Runs as root (sudo) because it touches iptables. If it FAILS, the container is NOT egress-contained: treat that as fail-closed and do not run unattended (the preflight still gates on other probes).",
+  "postStartCommand": "sudo .devcontainer/init-firewall.sh",
+
+  "remoteUser": "node",
+
+  "customizations": {
+    "vscode": {
+      "extensions": []
+    }
+  }
+}

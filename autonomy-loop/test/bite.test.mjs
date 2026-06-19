@@ -109,3 +109,14 @@ test("classifyOutcome: an explicit --assert-regex is authoritative (non-match = 
 test("classifyOutcome: ambiguous non-zero fails closed to error (an exit code is not a valid RED)", () => {
   assert.equal(classifyOutcome(1, "some terse nonstandard output"), "error");
 });
+
+test("classifyOutcome: a CRASH that merely mentions 'expected'/'assert' fails CLOSED, not a fake caught bite", () => {
+  // the red-team fail-open: a reverted fix that CRASHES with 'expected'/'assert' in the text must NOT be
+  // read as a caught assertion (that would be a false green in the crown-jewel bite). It is now "error".
+  assert.equal(classifyOutcome(1, "Error: the expected result was wrong\n    at f (x.js:1:1)"), "error");
+  assert.equal(classifyOutcome(1, "TypeError: Cannot read properties of undefined (reading 'expected')"), "error");
+  assert.equal(classifyOutcome(1, "ReferenceError: assert is not defined"), "error");
+  // a genuine assertion is still caught (regression guard for the narrowing)
+  assert.equal(classifyOutcome(1, "expect(received).toBe(expected)\nExpected: 1\nReceived: 2"), "assert-fail");
+  assert.equal(classifyOutcome(1, "not ok 1 - it works"), "assert-fail");
+});

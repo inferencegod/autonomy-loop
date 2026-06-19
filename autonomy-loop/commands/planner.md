@@ -52,6 +52,29 @@ EACH TICK:
    Append a one-line log + `tasks/ledger.jsonl`. Append any durable lesson to
    `.claude/skills/{{project}}-operate/SKILL.md` ("what almost broke + the rule that caught it").
 
+ADDITIVE v0.7.0 (DEFAULT-OFF, flag-gated; when off the steps above are unchanged):
+
+A. **SCOPE CEILING (emit with the spec).** Gated on `scope`: read `scope.maxFiles`, `scope.maxLines`,
+   `scope.maxNewPublicSymbols` from `autonomy.config.json`. If the whole `scope` block is absent OR every
+   value is 0, this is OFF: emit no ceiling and behave exactly as before. If any value is non-zero, then in
+   step 4 when you write the spec ALSO emit a `scope:` field carrying that ceiling (`maxFiles` / `maxLines`
+   / `maxNewPublicSymbols`, omit a key whose value is 0 = no limit on that metric) into both the spec doc
+   and the goal-ready build prompt, so the Builder enforces it (the Builder reads `hooks/scope-core.mjs`
+   `decideScope`, which forces a mandatory commit-and-yield handoff at a breach and a warn at
+   `scope.warnRatio`, default 0.8). The ceiling is a deterministic budget set by the plan gate, not a target:
+   size it to the spec's true blast radius. A spec whose honest blast radius exceeds the ceiling is too big to
+   build in one wave, so SPLIT it (see B) rather than inflating the ceiling.
+
+B. **RESCOPE on reviewer CONVERGENCE rung-1 (split / tighten).** Gated on `convergence`: if the Reviewer's
+   handoff (in `FOR-REVIEW.md` or `REVIEW-FEEDBACK.md`) escalated this task to CONVERGENCE rung-1 `rescope`
+   (from `hooks/convergence-core.mjs` `decideConvergence`, meaning the wave is oscillating or out of its
+   attempt budget on the SAME gate-failure signature, not frozen), do NOT re-feed the same spec. Instead SPLIT
+   or TIGHTEN the acceptance criteria for that task: carve the failing slice into its own smaller spec with a
+   single falsifiable acceptance test and a tighter scope ceiling (per A), park the rest, and hand the reduced
+   spec back through the normal screen (step 5). Each split spec still needs its own RED-before-green test;
+   never widen acceptance to make a red wave pass. If `convergence` is absent this rung never arrives and this
+   step is inert.
+
 NEVER: build code, push, or approve a spec yourself. NEVER ship a spec without a falsifiable acceptance test. NEVER
 auto-approve a spec touching a protected / money / frozen-invariant / new-infra / irreversible path — those PARK for
 the owner. The Reviewer screens every spec (the plan gate) before the Builder may touch it.

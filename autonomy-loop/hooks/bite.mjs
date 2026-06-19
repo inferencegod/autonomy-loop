@@ -41,11 +41,20 @@ const ERROR_MARKERS = [
   "cannot find module", "err_module_not_found", "modulenotfounderror", "module not found",
   "syntaxerror", "importerror", "cannot find name", "compilation failed", "cannot resolve",
   "no such file", "unexpected token", "collected 0 items", "collection error", "errno",
+  // runtime crashes: a reverted fix that CRASHES is not a caught assertion. These are checked BEFORE
+  // the assert markers so a crash that merely mentions "expected" cannot masquerade as a caught bite.
+  "typeerror", "referenceerror", "rangeerror", "cannot read propert", "is not a function",
+  "is not defined", "is not iterable", "is not a constructor", "uncaught", "unhandledrejection",
+  "thrown:", "segmentation fault", "fatal error", "panic:",
 ];
 const TIMEOUT_MARKERS = ["timed out", "timeout", "etimedout", "exceeded"];
+// Deliberately NARROW + runner-specific. The bare words "assert"/"expected"/"to be" and run-summary
+// lines ("failing tests"/"fail:") were dropped: they also appear in plain crash output, which let a
+// crash classify as a false "caught" (fail-open) inside the crown-jewel bite. Mainstream JS runners
+// (node:test, jest, vitest, mocha/chai, TAP) still match; for anything else, pass --assert-regex.
 const ASSERT_MARKERS = [
-  "assertionerror", "assertion failed", "assert", "expected", "to equal", "to be", "tobe(",
-  "not ok", "✖", "✗", "fail:", "failing tests", "actual:", "received:",
+  "assertionerror", "assertion failed", "err_assertion", "expect(", "tobe(", "toequal(",
+  "expected:", "received:", "actual:", "not ok ", "✖", "✗",
 ];
 
 export function classifyOutcome(code, text = "", opts = {}) {
@@ -58,8 +67,8 @@ export function classifyOutcome(code, text = "", opts = {}) {
   // ambiguous non-zero: no timeout, no build-error, and no assertion signature matched, and no
   // --assert-regex was supplied. An exit code alone is NOT a valid RED (a crash or an exotic build
   // failure looks the same), so fail CLOSED to "error" (cannot-verify) rather than fake a caught bite.
-  // The ASSERT_MARKERS list is broad, so a real assertion failure on any mainstream runner still lands
-  // as assert-fail; this only catches genuinely silent non-zero exits, which are honestly unverifiable.
+  // The assert markers are intentionally conservative, so a borderline crash lands here as "error"
+  // (a safe cannot-verify) instead of a false "caught"; supply --assert-regex for an exotic runner.
   return "error";
 }
 

@@ -21,11 +21,15 @@
     "coverage": "",
     "comment_patchTarget": "FOURTH gate (patch coverage). 0 = off. 80 = standard. 100 = strict, every changed line of a wave must be tested so a single bare line cannot ride through behind a flat global percent. Requires gate.coverage to also emit coverage-final.json (add --reporter=json). The reviewer runs hooks/patch-coverage.mjs at this threshold.",
     "patchTarget": 0,
-    "comment_selfMutate": "Self-mutation self-check (builder b1, opt-in). When true, before handoff the builder runs hooks/mutate.mjs, which mutates only this wave's changed lines and reports any mutant the tests fail to kill (a survivor = a test that ran the line but asserted nothing about it). Uses gate.test as the command. Advisory by default (the equivalent-mutant problem is undecidable), so the builder strengthens the assertion rather than auto-reverting. The builder's upstream complement to the reviewer's bite.",
-    "selfMutate": false,
+    "comment_selfMutate": "Self-mutation self-check (builder b1). ON by default (rigor-on philosophy: a gate hidden behind an off flag does not exist for most users). Before handoff the builder runs hooks/mutate.mjs, which mutates only this wave's changed lines and requires the tests to kill them (a survivor = a test that ran the line but asserted nothing). Uses gate.test. The builder's upstream complement to the reviewer's bite. speed.optOut can lighten it on plain additive waves only, never money-path.",
+    "selfMutate": true,
+    "comment_verifyGate": "FIFTH-gate routing (0.7.0). The bite router (hooks/verify-gate.mjs) picks golden-revert for regressions and the greenfield mutation-bite for brand-new code the revert cannot prove. govern (DEFAULT, rigor-on) = the router governs the verify verdict; it is FAIL-CLOSED (never exit 0 without a recorded killed-mutant or a clean RED, so it can only block, never silently pass), and the greenfield path needs gate.coverage set so it can score covered lines. shadow = a watch mode: run it but let the existing golden-revert bite still govern. off = the plain golden-revert bite governs (pre-0.7 behavior). Rollback is one step left.",
+    "verifyGate": "govern",
     "comment_frozenInvariant": "What must stay BYTE-IDENTICAL unless a human re-baselines: golden/snapshot tests, a recorded API contract, etc. Empty if none.",
     "frozenInvariant": "snapshot/golden tests stay byte-identical",
-    "envFidelity": ""
+    "envFidelity": "",
+    "comment_requireProdProtection": "v0.8 provision-or-refuse. true (DEFAULT, fail-closed) = the SessionStart preflight (hooks/preflight.mjs decidePreflight) REFUSES the auto-promotion path unless prodBranch carries a no-bypass push ruleset the agent token cannot bypass. Provision that ruleset with /autonomy-init (it POSTs prod-ruleset.json: enforcement active, bypass_actors empty so it binds even admins, rules pull_request + non_fast_forward + deletion). Set false ONLY to accept the risk on an attended local run; pairing it with the --i-accept-reduced-assurance flag is the attended-only escape hatch and NEVER enables unattended promotion.",
+    "requireProdProtection": true
   },
   "comment_breaker": "Cross-epoch runaway guard, read and written by the reviewer ONLY. maxEpochs = hard cap on reviewed waves before the loop parks to FOR-REVIEW + turn:human. maxNoProgressEpochs = consecutive waves whose HEAD tree-SHA did not change (churn/busywork) before parking. maxBudgetUsd = optional cumulative spend cap (0 = off). A trip is a real circuit-breaker: the sanctioned exception to no-stand-down.",
   "breaker": { "maxEpochs": 50, "maxNoProgressEpochs": 3, "maxBudgetUsd": 0, "maxPlanEpochs": 40, "maxPlanNoProgress": 3 },
@@ -41,6 +45,13 @@
   "honestyRule": "No fabricated numbers. Every rate carries N + a confidence interval, or says 'building, N/30'. A capability with no real data abstains visibly, never faked, never silently dead.",
   "comment_roles": "v0.6 plan lane. Both false = classic 2-terminal self-feeding loop (Builder MODE A on idle, byte-for-byte v0.5). planner=true = the recommended 3-terminal shape (a Planner grills research into gated specs and feeds the Builder; MODE A becomes the fallback floor). research=true as well = the 4-terminal power mode (a dedicated Researcher fills the idea pool on the PLAN-STATE baton). models.researcher/planner and breaker.maxPlan* apply only when enabled.",
   "roles": { "research": false, "planner": false },
+  "comment_v070": "v0.7.0 knobs. RIGOR ON by default (selfMutate, the oracle-strength gates atsg + assert-classify, the money-path floor, and the verify-gate router all default ON / govern); speed.optOut is the only relaxation and it never lightens money-path or irreversible work. The à la carte roles shape ({builder,reviewer,planner,researcher}: auto|required|off) is upgraded from the booleans above by hooks/migrate-roles.mjs at /autonomy-upgrade.",
+  "coordination": { "comment": "single-cli runs roles as subagents in ONE terminal (REDUCED-INDEPENDENCE: the deterministic gate still binds, the LLM critique is advisory; refuses if the gate is off). Default multi-process (separate processes) is unchanged.", "mode": "multi-process" },
+  "safety": { "comment": "reducedTrustOptIn must be true to allow single-cli or a lone-builder reduced-trust shape.", "reducedTrustOptIn": false },
+  "subagent": { "reviewerIsolated": true },
+  "convergence": { "comment": "Bounds productive-looking non-convergence: when the same gate-failure SIGNATURE recurs (even though the tree changes every wave) it escalates rescope -> stronger model -> park. maxAttemptsPerTask waves on one task before the ladder engages; oscillationK recurrences declare oscillation.", "maxAttemptsPerTask": 5, "oscillationK": 2 },
+  "scope": { "comment": "Planner-set scope ceiling: the builder must commit and yield before going too deep. 0 = off.", "maxFiles": 0, "maxLines": 0, "maxNewPublicSymbols": 0 },
+  "speed": { "comment": "The rigor opt-out is SCOPED, not all-or-nothing: it lightens the rigor gates (selfMutate, atsg, assert-classify, checked-coverage) ONLY on plain-additive, reversible waves. Money-path and irreversible changes (per the money-path detector) keep full rigor no matter what. optOut=false keeps everything on.", "optOut": false, "scope": "additive-only" },
   "postToolUseTestHook": false,
   "_example": "Real-world shape: a Next.js app used workBranch 'agent-loop', a set of golden snapshot tests as the frozen invariant, and protectedPaths ['test/golden/']."
 }
