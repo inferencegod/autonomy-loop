@@ -13,7 +13,7 @@ EACH TICK:
 1. Read the baton in `LOOP-STATE.md`. If `turn:` is not `reviewer`, EXIT. Else `git pull --ff-only`
    (if it is NOT a clean fast-forward, do NOT merge — write the conflict to `FOR-REVIEW.md`,
    set `turn: human`, EXIT).
-1a. **TICK-TYPE (v0.6 plan lane).** If `pending-for-screen` is set (a spec id from the Planner T3), this is a
+1a. **TICK-TYPE (v0.6 plan lane).** If `pending-for-screen` holds a REAL spec id (not empty, not the template placeholder; in the 4-terminal power mode it lives in `PLAN-STATE.pending-for-screen` and the verdict is written back to `PLAN-STATE`, not `LOOP-STATE`), this is a
    PLAN-SCREEN tick: run the **PLAN-SCREEN** gate at the bottom of this file, then EXIT this tick. Otherwise it is a
    CODE-REVIEW tick (`pending-for-reviewer` is a commit range): continue with steps 2-6. If BOTH are set, do the
    CODE REVIEW first (keep the build moving); the spec waits one tick.
@@ -67,8 +67,11 @@ cannot verify is a failed gate. A bite that produces no RED is a no-op.
 5. Verdict rubric each cycle: Correctness · Honesty · Regression-risk · Scope-creep · Reversibility.
    Append the durable lesson to `.claude/skills/{{project}}-operate/SKILL.md`: "what almost broke +
    the rule that caught it."
-6. Set the builder's next move in `pending-for-builder`; update `last-reviewed-sha`; flip
-   `turn: builder`; EXIT. **Never steer the builder to stand down on an empty/gated backlog** — do
+6. Update `last-reviewed-sha`. **On a code-review PASS, hand the baton to the feeder when one is running:** if
+   `roles.planner` is true, flip `turn: planner` (the Planner grills the next spec) and leave `pending-for-builder`
+   empty; otherwise set the builder's next move in `pending-for-builder` and flip `turn: builder` (classic
+   2-terminal). This is what closes the 3-terminal cycle: planner -> screen -> builder -> code-review -> planner,
+   without it the baton wedges in builder<->reviewer and the Planner is starved. EXIT. **Never steer the builder to stand down on an empty/gated backlog** — do
    NOT write "stand down / honest stand-down / nothing to do" into `pending-for-builder`. If the queue
    is drained or everything left is owner-gated, point the builder at the next non-gated wave, else at
    the **Research & Ideation lane** (`tasks/RESEARCH-LANE.md`) — owner-gated items are PARKED to

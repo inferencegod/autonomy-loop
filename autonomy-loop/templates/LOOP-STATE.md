@@ -5,7 +5,7 @@ last-builder-sha: <none>
 last-reviewed-sha: <none>
 pending-for-builder: <T2 writes the next concrete builder task here>
 pending-for-reviewer: <T1 writes the commit range to review here>
-pending-for-screen: <when roles.planner: T3 writes the spec id awaiting the Reviewer's plan-screen; else unused>
+pending-for-screen:
 epoch: 0
 no-progress-epochs: 0
 last-tree-sha: <none>

@@ -18,7 +18,7 @@ THE GATE (all green or REVERT — never commit red): `{{gate.test}}` + the froze
 
 3. Plan it. If it hits the Gate List (`autonomy.config.json` → `gateList`) → STOP: write the ask into `FOR-REVIEW.md`, set `turn: human`, pause.
 4. Code it → run the full gate → commit (small, single-purpose) → `git push origin {{workBranch}}` (NEVER `{{prodBranch}}`).
-5. Update `STATE.md`, append a one-line log + `tasks/ledger.jsonl`. Append the durable lesson to `.claude/skills/{{project}}-operate/SKILL.md`: "what almost broke + the rule that caught it."
+5. Update `STATE.md`, append a one-line log + `tasks/ledger.jsonl` (when the wave built a Planner spec, record `spec:<id> done` so the Planner can reconcile it). Append the durable lesson to `.claude/skills/{{project}}-operate/SKILL.md`: "what almost broke + the rule that caught it."
 6. Write the next task into `pending-for-builder`, set `pending-for-reviewer` = the commit range you pushed, flip `turn: reviewer`. EXIT.
 
 **FEED PRECEDENCE (v0.6 plan lane):** what to build next is (1) `pending-for-builder` if the Reviewer set one; then, when `roles.planner` is true, the Planner (T3) is your FEEDER: it owns ideation + `tasks/IDEAS.md` and hands you approved, gated specs via `pending-for-builder`, so you BUILD the spec (its goal-ready build prompt) and do NOT enter MODE A. MODE A below is the **fallback floor**: it runs only when `roles.planner` is false (classic 2-terminal) OR the Planner has stalled to `turn: human` (feeder dry), so the loop never starves and `tasks/IDEAS.md` keeps a single writer.

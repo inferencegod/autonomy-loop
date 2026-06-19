@@ -1,6 +1,6 @@
 # autonomy-loop
 
-**Two Claude Code terminals on one repo — a builder and an adversarial reviewer — passing a git baton through a frozen-invariant safety gate.** A Claude Code plugin you drop into any project and tune from one config file.
+**Two-to-four Claude Code terminals on one repo: a builder and an adversarial reviewer pass a git baton through a frozen-invariant safety gate, with an optional planner that grills researched ideas into gated, buildable specs.** A Claude Code plugin you drop into any project and tune from one config file.
 
 > Honest framing up front: the *idea* of a self-driving builder/reviewer loop is not new (see [Prior art](#prior-art)). What this gives you is a **specific, opinionated discipline** — an adversarial multi-lens reviewer, a *frozen-invariant* gate, and a no-fabrication rule — wired together and tunable per project. The value is in the constraints, not the novelty.
 
@@ -14,6 +14,8 @@ Two terminals run `claude` in a `/loop` against the **same repo on different git
 - **Terminal 2 — Reviewer.** Re-runs the gate itself, spawns a **5-lens critic panel** (correctness · honesty · regression · security · UX), red-teams the opposite, fixes what's safe, flags the rest, hands back.
 
 They never talk in chat. The only shared state is a committed markdown file — **`LOOP-STATE.md`** — that holds the baton (`turn:`, `last-builder-sha`, `last-reviewed-sha`, the next instruction each way). State lives in git, so a crash just resumes from the last commit.
+
+> **v0.6 adds an optional Planner** in front of this loop (and a Researcher in the 4-terminal power mode) that grills researched ideas into gated specs before they cost a build cycle. The diagram below is the default 2-terminal shape; see [Three shapes](#three-shapes-the-plan-lane-v06).
 
 ```mermaid
 flowchart LR
@@ -46,6 +48,7 @@ The keystone rule: **every spec ships a falsifiable acceptance test.** That is t
 - **The reviewer is adversarial by construction.** Its only win condition is finding fault. It re-runs the gate from scratch (never trusts the builder's "tests pass"), spawns role-specialized critics, and must argue *why the change is wrong* before it's allowed to approve.
 - **A frozen invariant the loop can't quietly re-baseline.** You declare what must stay byte-identical (golden/snapshot tests, a recorded API contract). Drift requires a human GO — the loop escalates, it doesn't overwrite.
 - **A no-fabrication rule.** Every number a build emits must carry its sample size + interval, or say "building — N/30." A capability with no real data abstains *visibly* instead of inventing a plausible value.
+- **The plan is gated too (v0.6).** With the Planner on, every spec it grills must ship a *falsifiable acceptance test* before the Builder may touch it. That test is the ground-truth signal the bite and the 5-lens panel check against; a planning layer without it is just a faster way to be wrong. See [Three shapes](#three-shapes-the-plan-lane-v06).
 - **Cost-aware.** Critics run on a cheap model in parallel; the expensive judge is only invoked when a wave escalates. See [Cost](#cost).
 - **Portable.** One `autonomy.config.json` drives the branch names, gate commands, models, protected paths, and honesty rule. The plugin is project-agnostic.
 

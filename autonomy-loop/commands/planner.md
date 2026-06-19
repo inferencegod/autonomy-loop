@@ -45,7 +45,7 @@ EACH TICK:
    needs-owner`, set `turn: human`, EXIT. The owner's answers complete it next tick.
 
    GROWTH SPLIT: if the winner is NON-code (a competitor battlecard, a positioning brief, an SEO/content plan, a
-   pricing rec) do NOT write a build spec — DRAFT the artifact into `GROWTH.md` and PARK it to `FOR-REVIEW.md` for
+   pricing rec) do NOT write a build spec — DRAFT the artifact into `GROWTH.md` (create it if absent) and PARK it to `FOR-REVIEW.md` for
    the owner to publish (public content + pricing are gate-list / irreversible). Same honesty rule. Then continue.
 
 5. **HAND OFF.** Set `pending-for-screen` = the spec id (clear `pending-for-builder`); flip `turn: reviewer`; EXIT.
