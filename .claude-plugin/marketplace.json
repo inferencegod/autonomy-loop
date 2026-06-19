@@ -3,6 +3,6 @@
   "name": "autonomy-loop",
   "owner": { "name": "inferencegod" },
   "plugins": [
-    { "name": "autonomy-loop", "source": "./autonomy-loop", "description": "Two-terminal builder/reviewer autonomy loop: a frozen-invariant gate, an adversarial 5-lens reviewer with a per-fix bite, opt-in coverage-drift and patch-coverage gates, and an anti-fabrication discipline." }
+    { "name": "autonomy-loop", "source": "./autonomy-loop", "description": "Builder / reviewer / planner / researcher Claude Code terminals pass a git baton through a deterministic, frozen-invariant gate with an adversarial 5-lens reviewer and a per-fix bite. v0.8.0 adds a rings + provision-or-refuse security posture: a SessionStart preflight classifies a trust tier (ATTESTED -> LIVENESS -> SEPARATED -> HARDENED) and refuses unattended auto-promotion below the forge-grade tier, with a read-only control plane, a sandboxed bash tool, a repo-scoped credential, and a provisioned no-bypass prod ruleset." }
   ]
 }
