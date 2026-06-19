@@ -13,6 +13,8 @@ Format: Keep a Changelog · Versioning: SemVer.
 - `commands/reviewer.md`: a tick-type branch (code review first, plan screen second) plus the new plan-screen rubric. The existing 5-lens code panel, the mechanized bite, and the circuit breaker are unchanged.
 - `templates/LOOP-STATE.md`: the baton now documents the `planner` turn and a `pending-for-screen` slot, both unused when `roles.planner` is false.
 - `hooks/migrate-config.mjs`: idempotently tops up `roles` (off), the two `breaker` plan fields, and `models.researcher`/`models.planner` (only when a models block exists) for existing installs, never overwriting a set value and never resetting a baton. Six new migrator tests.
+### Fixed
+- Plan-lane wiring, caught by an adversarial red-team of the repo before public use: the 3-terminal cycle now closes (on a code-review PASS the Reviewer hands the baton back to the Planner when `roles.planner` is on, instead of wedging in builder<->reviewer and starving the feeder); `/autonomy-init` scaffolds `GROWTH.md` and `tasks/IDEAS.md`; `pending-for-screen` defaults empty so a classic 2-terminal install never trips the plan-screen on a placeholder; SECURITY.md gains a real threat model and the README/headline acknowledge the planner.
 ### Backward compatibility
 - `roles.research=false, roles.planner=false` (the default, and what `/autonomy-upgrade` sets for an existing install) reproduces v0.5 exactly: no Planner, no plan gate, no `PLAN-STATE.md`, the Builder self-feeds via MODE A, the Reviewer unchanged. Adopting v0.6 is a config flag, not a rewrite.
 
