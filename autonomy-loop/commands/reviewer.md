@@ -24,7 +24,7 @@ EACH TICK:
 1. Read the baton in `LOOP-STATE.md`. If `turn:` is not `reviewer`, EXIT. Else `git pull --ff-only`
    (if it is NOT a clean fast-forward, do NOT merge — write the conflict to `FOR-REVIEW.md`,
    set `turn: human`, EXIT).
-1a. **TICK-TYPE (v0.6 plan lane).** If `pending-for-screen` holds a REAL spec id (not empty, not the template placeholder; in the 4-terminal power mode it lives in `PLAN-STATE.pending-for-screen` and the verdict is written back to `PLAN-STATE`, not `LOOP-STATE`), this is a
+1a. **TICK-TYPE (v0.6 plan lane).** If `pending-for-screen` (on `LOOP-STATE.md` — the Planner writes its spec there for screening in EVERY shape, including 4-terminal) holds a REAL spec id (not empty, not the template placeholder), this is a
    PLAN-SCREEN tick: run the **PLAN-SCREEN** gate at the bottom of this file, then EXIT this tick. Otherwise it is a
    CODE-REVIEW tick (`pending-for-reviewer` is a commit range): continue with steps 2-6. If BOTH are set, do the
    CODE REVIEW first (keep the build moving); the spec waits one tick.

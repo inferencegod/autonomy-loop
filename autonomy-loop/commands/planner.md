@@ -32,8 +32,7 @@ EACH TICK:
 
 3. **GET AN IDEA (refill vs drain — amortize the expensive part).** Check `tasks/IDEAS.md`:
    - A fresh, un-built, un-expired top idea exists → **DRAIN** it (cheap: skip new research).
-   - Pool thin / stale / expired → **REFILL** (only when `roles.research` is false; if `roles.research` is true the
-     Researcher T3 fills the pool, so just wait or set `turn: research`). `ultrathink` and fan out subagents across
+   - Pool thin / stale / expired → if a RESEARCHER IS LIVE (`node ${CLAUDE_PLUGIN_ROOT}/hooks/presence-cli.mjs is-live researcher` exits 0), it fills the pool: set the upstream `PLAN-STATE.md` `turn: research` to wake it, then EXIT this tick (you drain the refilled pool next tick). Only when NO researcher is live do you **REFILL** yourself: `ultrathink` and fan out subagents across
      the research LENSES (see `tasks/RESEARCH-LANE.md`): product gaps · competitors · marketing/positioning ·
      SEO/content · pricing · UX · the project lens. **Fan out for READING only, never to write the spec** (parallel
      writing fragments). Start wide then narrow; cap each lens. DIVERGE ≥5 candidates with judgment deferred, then
@@ -91,7 +90,7 @@ PLAN-BREAKER (the feeder cannot run away — sanctioned stand-down): if you chur
 ticks without producing an approve-able spec, or hit `{{breaker.maxPlanEpochs}}` planning epochs, append the
 tripped counter + why to `FOR-REVIEW.md`, set `turn: human`, EXIT.
 
-4-TERMINAL OPT-IN: when `roles.research` is true the research fan-out is a dedicated Researcher (T3,
+4-TERMINAL: when a Researcher is launched the research fan-out is a dedicated Researcher (T3,
 `commands/researcher.md`) on the upstream `PLAN-STATE.md` baton (`templates/PLAN-STATE.md`); you become the Planner
 (T4) that only drains the pool and grills. Default (recommended) is the 3-terminal shape above on the single
 `LOOP-STATE.md` baton.
