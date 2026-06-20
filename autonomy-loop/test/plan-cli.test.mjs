@@ -128,7 +128,7 @@ test("SIDECAR DURABILITY: a git reset --hard / stash on the working tree does NO
     writeFileSync(join(repo, "scratch.txt"), "uncommitted build-lane edit\n");
     git(repo, "stash -u || true"); // the report's `git stash`
     git(repo, "reset --hard HEAD"); // the report's catastrophic `reset --hard`
-    // The baton + pool survive verbatim — they live in <git-common-dir>/autonomy-plan/, not the tree.
+    // The baton + pool survive verbatim - they live in <git-common-dir>/autonomy-plan/, not the tree.
     assert.equal(runIn(repo, ["read-turn"]), "plan", "reset --hard must NOT revert the sidecar baton");
     assert.equal(JSON.parse(runIn(repo, ["status", "--json"])).planEpoch, 4);
     assert.equal(JSON.parse(runIn(repo, ["read-pool", "--json"]))[0].text, "a hard-won research idea");

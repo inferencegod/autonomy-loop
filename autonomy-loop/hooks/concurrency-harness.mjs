@@ -72,12 +72,12 @@ export function simulate({ seed = 1, steps = 200, roster = ["builder", "reviewer
     if (baton.epoch <= 0) violations.push({ step: i, kind: "epoch-not-positive" });
   }
 
-  // INVARIANT: no double-feed — no two feeds share an epoch.
+  // INVARIANT: no double-feed - no two feeds share an epoch.
   const feedEpochs = baton.feeds.map((f) => f.epoch);
   const dupFeed = feedEpochs.length !== new Set(feedEpochs).size;
   if (dupFeed) violations.push({ kind: "double-feed" });
 
-  // INVARIANT: no starvation — every still-live role got at least one turn over a long run.
+  // INVARIANT: no starvation - every still-live role got at least one turn over a long run.
   if (steps >= liveRoster.length * 4) {
     for (const r of liveRoster) if (!turnsSeen.has(r)) violations.push({ kind: "starvation", role: r });
   }

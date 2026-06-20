@@ -1,9 +1,9 @@
-# PLAN-STATE — the upstream (feeder) baton  ·  ⚠ NOT the source of truth (read below)
+# PLAN-STATE - the upstream (feeder) baton  ·  ⚠ NOT the source of truth (read below)
 
 > 0.8.3: the authoritative 4-terminal plan baton + idea pool now live in a SIDECAR outside the
 > working tree (`<git-common-dir>/autonomy-plan/`, via `hooks/plan-cli.mjs`), NOT in this file.
 > This file is a human-readable MIRROR only. The plan lane reads/writes the baton with `plan-cli`
-> so the every-~10-min git reconcile (stash / reset before pull) can NEVER wipe it — the bug that
+> so the every-~10-min git reconcile (stash / reset before pull) can NEVER wipe it - the bug that
 > ate whole sessions when this state was uncommitted on the build lane's shared branch.
 
 turn: research          # plan-lane turn vocab = research | plan | human  (mirror of `plan-cli read-turn`)
@@ -28,7 +28,7 @@ plan-no-progress-epochs: 0
   of the loop sees the same baton+pool with NO commit and NO pull, and the reconcile/stash/reset never
   touches it. This file (and tasks/IDEAS.md, if present) are human-readable mirrors; if they ever disagree
   with `plan-cli status`, the SIDECAR wins and the mirror is stale. NEVER treat a blank/reverted copy of
-  this file as a fresh research turn — `plan-cli` is the truth and its integrity guard refuses a wiped baton.
+  this file as a fresh research turn - `plan-cli` is the truth and its integrity guard refuses a wiped baton.
 
   TURN VOCAB: a terminal works ONLY when the plan-cli turn is its name: research (T3) | plan (T4) | human.
   The turn cycles research -> plan -> research, one writer at a time (whoever holds the turn writes the

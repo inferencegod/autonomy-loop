@@ -1,4 +1,4 @@
-# LOOP-STATE — the baton
+# LOOP-STATE - the baton
 
 turn: human
 last-builder-sha: <none>
@@ -25,5 +25,5 @@ last-tree-sha: <none>
   EMPTY bug/feature backlog is NOT one of these. When the backlog
   is drained the loop runs the Research & Ideation lane (see RESEARCH-LANE.md); owner-gated items are
   PARKED to FOR-REVIEW.md as an approval menu and never set `turn: human`.
-  This baton is the single source of truth for whose turn it is — never the commit log.
+  This baton is the single source of truth for whose turn it is - never the commit log.
 -->
