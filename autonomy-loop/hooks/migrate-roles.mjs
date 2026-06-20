@@ -29,8 +29,14 @@ export function migrateRoles(input) {
 
   // Map legacy booleans: true -> "auto" (detected when launched), false -> "off" (preserve a
   // deliberate disable). Already-string values in the new shape are preserved as-is.
+  // PRECEDENCE for the researcher: the new `researcher` key ALWAYS wins over the legacy `research`
+  // alias. We rebuild `roles` from scratch and never carry `research` forward, so the legacy alias
+  // is DROPPED. This kills the 0.8.3 dogfood bug: a mixed block with researcher:"auto" AND a stray
+  // research:false could let the lingering alias VETO the researcher at runtime; after migrate the
+  // alias is gone, so it can never veto again. (`planner` has no legacy alias; it was always `planner`.)
   for (const key of ["planner", "researcher"]) {
-    // accept the historical "research" key as an alias for researcher
+    // researcher: prefer the new key, fall back to the legacy `research` alias only when the new key
+    // is absent (??). When both are present, `researcher` is taken and `research` is discarded.
     const legacyVal = key === "researcher" ? (legacy.researcher ?? legacy.research) : legacy[key];
     if (typeof legacyVal === "string" && VALID_MODES.has(legacyVal)) {
       roles[key] = legacyVal; // already migrated, keep
@@ -42,6 +48,9 @@ export function migrateRoles(input) {
       roles[key] = NEW_ROLE_DEFAULTS[key]; added.push(`roles.${key}:${NEW_ROLE_DEFAULTS[key]}(default)`);
     }
   }
+  // Record the alias drop so /autonomy-upgrade reports it, and so the mixed-state fix is observable.
+  // (The new `roles` block we build below intentionally has no `research` key; this is just the log.)
+  if (legacy.research !== undefined) added.push("roles.research:dropped(legacy alias)");
 
   // builder + reviewer get the mandatory-core defaults if not already a valid mode.
   for (const key of ["builder", "reviewer"]) {
@@ -67,9 +76,13 @@ export function migrateRoles(input) {
 }
 
 // isMigrated(cfg): true if the config is already in the new shape (idempotency check).
+// A lingering legacy `research` alias in the roles block counts as NOT migrated, so the runner
+// re-runs migrateRoles to strip it (the alias can veto the researcher at runtime; we must drop it).
+// This stays idempotent: one migrate removes `research`, after which isMigrated reports true forever.
 export function isMigrated(cfg) {
   if (!cfg || typeof cfg.roles !== "object") return false;
   const r = cfg.roles;
+  if (r.research !== undefined) return false; // stray legacy alias present -> needs the drop
   const rolesOk = ["builder", "reviewer", "planner", "researcher"].every((k) => typeof r[k] === "string" && VALID_MODES.has(r[k]));
   const leaseOk = cfg.lease && typeof cfg.lease.ttlSeconds === "number";
   const safetyOk = cfg.safety && typeof cfg.safety.reducedTrustOptIn === "boolean";
