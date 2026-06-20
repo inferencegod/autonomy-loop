@@ -155,12 +155,42 @@ export function decide(tool, input = {}, cfg = {}) {
     // Still best-effort (a renamed binary or an exec of a written script evades it); read-only files are the fix.
     const fileBn = protectedPaths.filter((p) => p && !p.endsWith("/")).map((p) => p.split("/").pop());
     const critical = [...new Set(["decide.mjs", "gate-guard.mjs", ...fileBn])].filter(Boolean);
-    const interp = /\b(?:python3?|node|deno|bun|ruby|perl|php)\b[^\n]*(?:\s-(?:c|e)\b|open\s*\(|writeFile|>>?)/.test(cmd);
+
+    // The interpreter-write check is computed PER SEGMENT (split on the same shell separators that
+    // executedResidue / blankEchoArgsToSafeSink use), NOT over the whole line. The old whole-line form had a
+    // `>>?` clause that matched ANY redirect anywhere (a benign `2>/dev/null`, an unrelated `>`), so a normal
+    // compound command (`node "$P" signin ...; git status --short` whose status segment merely NAMES a
+    // protected basename) was denied even though nothing was written. We now deny ONLY when ONE segment holds
+    // BOTH an interpreter token AND the protected basename AND a real WRITE primitive in that same segment:
+    //   - a JS/Python write call (writeFile[Sync] / appendFile[Sync] / createWriteStream / fs.write / truncate),
+    //   - an open(...) opened in a write mode ('w','a','r+','w+','a+'),
+    //   - or a `>`/`>>` redirect whose target is/contains the basename.
+    // A bare `-e`/`-c` that only READS (readFile / require / JSON.parse / cat) with NO write primitive ALLOWS.
+    // RESIDUAL ($VAR cross-segment): an indirected write whose path is in a shell var set in a DIFFERENT
+    // segment (`X=decide.mjs; node -e "writeFileSync(X,'x')"`) carries no basename in the write segment and so
+    // slips by. That is the documented `$VAR`-class limit (same family as `git push origin $B`); the real
+    // barrier is OS read-only files. Fail-closed otherwise: when a write primitive sits with the basename, deny.
+    const splitSegs = (str) => str.split(/(&&|\|\||;|\||\n)/).filter((_, i) => i % 2 === 0);
+    const segments = splitSegs(cmd);
+    const segmentsNoQ = splitSegs(cmdNoQ);
+    const INTERP = /\b(?:python3?|node|deno|bun|ruby|perl|php)\b/;
+    const WRITE_CALL = /\b(?:writeFileSync|writeFile|appendFileSync|appendFile|createWriteStream|truncate)\b|\bfs\.write\b/;
+    const OPEN_WRITE = /\bopen\s*\([^)]*['"](?:w|a|r\+|w\+|a\+)['"]/; // open(..., 'w'|'a'|'r+'|'w+'|'a+')
     for (const b of critical) {
       const be = RX(b);
       const writeNear = new RegExp(`(?:\\b(?:rm|rmdir|unlink|mv|cp|dd|tee|truncate|install|ln|patch|shred|chmod|chown)\\b[^\\n]*|>>?\\s*[^\\n|;&]*|\\b(?:sed|perl)\\b[^\\n]*-i[^\\n]*)${be}`);
       if (writeNear.test(cmd) || writeNear.test(cmdNoQ)) return deny(`shell write to a control-plane file (${b})`);
-      if (interp && (cmd.includes(b) || cmdNoQ.includes(b))) return deny(`interpreter write touching a control-plane file (${b})`);
+      const redirToBn = new RegExp(`>>?\\s*[^\\n|;&]*${be}`); // a `>`/`>>` whose target contains the basename
+      for (let i = 0; i < segments.length; i++) {
+        const seg = segments[i], segNoQ = segmentsNoQ[i] || "";
+        if (!INTERP.test(seg)) continue;
+        if (!(seg.includes(b) || segNoQ.includes(b))) continue;
+        const hasWrite =
+          WRITE_CALL.test(seg) || WRITE_CALL.test(segNoQ) ||
+          OPEN_WRITE.test(seg) || OPEN_WRITE.test(segNoQ) ||
+          redirToBn.test(seg) || redirToBn.test(segNoQ);
+        if (hasWrite) return deny(`interpreter write touching a control-plane file (${b})`);
+      }
     }
     return ALLOW;
   }

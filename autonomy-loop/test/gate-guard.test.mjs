@@ -170,6 +170,47 @@ test("P1-3 no smuggling: a prod push 'quoted' but NOT actually a write-to-safe-f
   ]) assert.ok(denied(bash(c)), "must NOT be smuggled past the gate: " + c);
 });
 
+// ---- v0.8.4 FIX: interpreter-write control-plane check is PER-SEGMENT with a real write primitive ----
+// Live dogfood false-positive: the old check computed `interp` over the WHOLE line, and its `>>?` clause
+// matched ANY redirect anywhere (a benign `2>/dev/null`, an unrelated `>`). So a normal compound command
+// from the autonomous reviewer (a `node` sign-in in one segment; a protected basename merely NAMED in a
+// DIFFERENT segment, e.g. `git status --short .autonomy-coverage.json`) was DENIED though nothing was
+// written. The researcher hit a sibling case: `node -e "...require('autonomy.config.json')..."` used purely
+// to READ a config value. The fix denies ONLY when one segment holds interpreter + basename + a write
+// primitive in that SAME segment.
+test("v0.8.4 MUST NOW ALLOW: reviewer compound + pure-read node -e (interpreter, basename, NO write)", () => {
+  const c3 = { prodBranch: "main", protectedPaths: ["autonomy.config.json", ".autonomy-coverage.json", "autonomy-loop/hooks/"] };
+  const b3 = (command) => decide("Bash", { command }, c3);
+  for (const c of [
+    // reviewer's compound: node sign-in in one segment, protected basename only NAMED (read) in another,
+    // with a benign `2>/dev/null` that used to flip the whole-line `interp` flag true.
+    "cd /repo && P=hooks/presence-cli.mjs; node \"$P\" signin reviewer --ttl=1800 --quiet 2>/dev/null; git status --short .autonomy-coverage.json",
+    // a variant where the basename appears in the same segment as a redirect that targets /dev/null (not it):
+    "node presence-cli.mjs signin reviewer 2>/dev/null; git diff --name-only .autonomy-coverage.json",
+    // the researcher's pure read: interpreter + basename, but only readFileSync/require/JSON.parse, no write.
+    "node -e \"JSON.parse(require('fs').readFileSync('autonomy.config.json','utf8'))\"",
+    "node -e \"const c = require('./autonomy.config.json'); console.log(c.prodBranch)\"",
+    "python3 -c \"import json; json.load(open('autonomy.config.json'))\"",   // open() default read mode, no write
+  ]) assert.equal(b3(c).action, "allow", "should allow (no write primitive in the basename segment): " + c);
+});
+
+test("v0.8.4 MUST STILL BLOCK: a write primitive in the SAME segment as a protected basename", () => {
+  const c3 = { prodBranch: "main", protectedPaths: ["autonomy.config.json", ".autonomy-coverage.json", "autonomy-loop/hooks/"] };
+  const b3 = (command) => decide("Bash", { command }, c3);
+  for (const c of [
+    // the existing red-team interpreter writes (decide.mjs / gate-guard.mjs basenames) must stay denied:
+    "python3 -c \"open('hooks/decide.mjs','w').write('x')\"",
+    "node -e \"require('fs').writeFileSync('hooks/decide.mjs','x')\"",
+    // new adversarial write calls targeting the config basename, all same-segment with the basename:
+    "node -e \"require('fs').appendFileSync('autonomy.config.json','x')\"",
+    "node -e \"require('fs').createWriteStream('autonomy.config.json')\"",
+    "python3 -c \"open('autonomy.config.json','a').write('x')\"",          // open() in append mode
+    "python3 -c \"open('autonomy.config.json','r+').write('x')\"",         // open() in r+ (write) mode
+    "node -e \"require('fs').truncate('.autonomy-coverage.json',0,()=>{})\"",
+    "node -e \"process.stdout.write('x')\" >> autonomy.config.json",       // redirect target IS the basename
+  ]) assert.ok(denied(b3(c)), "should STILL block (write primitive + basename in one segment): " + c);
+});
+
 test("executedResidue: blanks descriptive regions but preserves executed structure (unit)", () => {
   // commit message value blanked -> no 'push' token remains in residue
   assert.ok(!/push/.test(executedResidue('git commit -m "do not git push origin main"', [])));

@@ -60,6 +60,41 @@ test("research alias maps to researcher", () => {
   assert.equal(cfg.roles.researcher, "auto");
 });
 
+test("dogfood mixed state: stray legacy research:false is DROPPED, researcher:auto wins (no veto)", () => {
+  const { cfg } = migrateRoles({ roles: { builder: "auto", reviewer: "required", planner: "auto", researcher: "auto", research: false } });
+  assert.equal(cfg.roles.researcher, "auto");                       // the new key wins
+  assert.equal(Object.prototype.hasOwnProperty.call(cfg.roles, "research"), false); // alias is gone
+  assert.equal(cfg.roles.builder, "auto");
+  assert.equal(cfg.roles.reviewer, "required");
+  assert.equal(cfg.roles.planner, "auto");
+});
+
+test("mixed state is NOT considered migrated (so the runner re-strips the alias)", () => {
+  // all four new keys valid + lease + safety present, but a stray legacy research lingers.
+  const mixed = { roles: { builder: "auto", reviewer: "required", planner: "auto", researcher: "auto", research: false }, lease: { ttlSeconds: 90, renewEverySeconds: 30 }, safety: { reducedTrustOptIn: false } };
+  assert.equal(isMigrated(mixed), false);                           // stray alias -> needs the drop
+  const { cfg } = migrateRoles(mixed);
+  assert.equal(Object.prototype.hasOwnProperty.call(cfg.roles, "research"), false);
+  assert.equal(cfg.roles.researcher, "auto");
+  assert.equal(isMigrated(cfg), true);                              // and now it is migrated
+});
+
+test("legacy {research:true, planner:false} -> researcher:auto, planner:off, no research key remains", () => {
+  const { cfg } = migrateRoles({ roles: { research: true, planner: false } });
+  assert.equal(cfg.roles.researcher, "auto");
+  assert.equal(cfg.roles.planner, "off");
+  assert.equal(Object.prototype.hasOwnProperty.call(cfg.roles, "research"), false);
+});
+
+test("idempotent: migrate twice drops research once and it never reappears", () => {
+  const first = migrateRoles({ roles: { builder: "auto", reviewer: "required", planner: "auto", researcher: "auto", research: false } }).cfg;
+  assert.equal(Object.prototype.hasOwnProperty.call(first.roles, "research"), false);
+  assert.equal(isMigrated(first), true);
+  const second = migrateRoles(first).cfg;
+  assert.deepEqual(second.roles, first.roles);                      // no further change
+  assert.equal(Object.prototype.hasOwnProperty.call(second.roles, "research"), false); // stays gone
+});
+
 test("rigor gates default ON (best-output philosophy)", () => {
   const { cfg } = migrateRoles({ roles: { planner: false } });
   assert.equal(cfg.gate.selfMutate, true);
