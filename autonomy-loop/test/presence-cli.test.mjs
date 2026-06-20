@@ -61,6 +61,30 @@ test("TTL tuned to 3x the loop interval keeps a terminal live across one 10-min 
   finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
+test("signin --quiet writes the lease but prints nothing on stdout (silences the per-tick sign-in noise)", () => {
+  const dir = dirNew();
+  try {
+    const out = run(dir, ["signin", "builder", "--ttl=1800", "--quiet", `--now=${NOW}`]);
+    assert.equal(out, "", "signin --quiet must produce empty stdout");
+    assert.ok(existsSync(join(dir, "builder.lease.json")), "the lease must still be written under --quiet");
+    assert.deepEqual(live(dir, plus(60)), ["builder"], "the quiet sign-in must still land in the roster");
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("signin --quiet still fails loudly: a bad invocation exits non-zero with stderr (failures are never silent)", () => {
+  const dir = dirNew();
+  try {
+    let threw = false, stderr = "", code = 0;
+    try {
+      execFileSync(process.execPath, [CLI, "signin", "bogus-role", "--ttl=1800", "--quiet", `--dir=${dir}`, `--now=${NOW}`], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+    } catch (e) { threw = true; stderr = String(e.stderr || ""); code = e.status; }
+    assert.ok(threw, "an unknown role with --quiet must still exit non-zero");
+    assert.notEqual(code, 0, "exit code must be non-zero");
+    assert.match(stderr, /unknown role/, "the error must still reach stderr even with --quiet");
+    assert.ok(!existsSync(join(dir, "bogus-role.lease.json")), "no lease should be written for a rejected role");
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
 test("cross-worktree: a signin in one worktree is visible from another (shared git dir, no commit)", () => {
   const git = (cwd, a) => execSync(`git ${a}`, { cwd, stdio: ["ignore", "pipe", "pipe"] });
   const runIn = (cwd, args) => execFileSync(process.execPath, [CLI, ...args], { cwd, encoding: "utf8" }).trim();

@@ -50,13 +50,18 @@ run_preflight () {
   echo $?
 }
 
-echo "================ AC (a): protectedPath agent-writable -> REFUSE TO START ================"
-# Keep protected/ writable by us. Note gate.requireProdProtection=false so the ONLY thing that can flip
+echo "================ AC (a): protectedPath agent-writable ================"
+# Keep protected/ writable by us. gate.requireProdProtection=false so the ONLY thing that can flip
 # allowStart=false is controlPlaneWritable, isolating this AC.
 chmod u+w protected
+# attended (DEFAULT): the session must START (exit 0) with a heads-up, NOT a scary hook error.
 EXIT=$(run_preflight)
-check_eq "a1 preflight exits non-zero" "1" "$EXIT"
-if grep -q "config/hooks/leases are writable" "$WORK/_err"; then ok "a2 controlPlaneWritable refusal printed"; else bad "a2 controlPlaneWritable refusal printed"; echo "    --- stderr ---"; sed 's/^/    /' "$WORK/_err"; fi
+check_eq "a1 attended start is NOT blocked (exit 0)" "0" "$EXIT"
+if grep -q "auto-promotion is OFF" "$WORK/_out"; then ok "a2 attended heads-up printed (unattended off, not a hard error)"; else bad "a2 attended heads-up printed"; echo "    --- out ---"; sed 's/^/    /' "$WORK/_out"; fi
+# strict / unattended (opt-in): the SAME writable plane hard-REFUSES with a non-zero exit.
+EXITS=$( ( cd "$REPO" && AUTONOMY_UNATTENDED=1 node "$HOOKS/preflight-run.mjs" ) >"$WORK/_out" 2>"$WORK/_err"; echo $? )
+check_eq "a3 unattended (AUTONOMY_UNATTENDED=1) REFUSES (exit 1)" "1" "$EXITS"
+if grep -q "config/hooks/leases are writable" "$WORK/_err"; then ok "a4 controlPlaneWritable refusal printed (strict)"; else bad "a4 controlPlaneWritable refusal printed (strict)"; echo "    --- stderr ---"; sed 's/^/    /' "$WORK/_err"; fi
 
 echo "================ AC (b): protectedPath locked read-only -> probe PASSES ================"
 # Lock the protected dir; the controlPlaneWritable probe must now read it as LOCKED (not writable).

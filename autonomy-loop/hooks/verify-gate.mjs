@@ -8,14 +8,24 @@
 // each commit through the already-built pure classifyBite(): REGRESSION -> the golden-revert bite,
 // GREENFIELD / EMPTY_FIX / REFACTOR_SUSPECT -> the mutation-bite runner, UNCLASSIFIABLE -> cannot-verify.
 //
-// This is the highest-risk change in the loop, so it ships behind gate.verifyGate (DEFAULT off) and
-// fail-closed:
-//   off    = NO-OP. Today's behavior exactly: defer to the existing golden-revert bite, exit with ITS code.
-//            (The reviewer in 'off' calls bite.mjs directly; if this router is invoked in off it just defers.)
+// This ships behind gate.verifyGate (DEFAULT govern, rigor-on) and is fail-closed in every mode:
+//   off    = NO-OP. Pre-router behavior exactly: defer to the existing golden-revert bite, exit with ITS
+//            code. (The reviewer in 'off' calls bite.mjs directly; if this router is invoked in off it just
+//            defers.) An explicit --mode=off or gate.verifyGate=off still selects this; it is an opt-OUT.
 //   shadow = RUN the router (classify + dispatch) to compute the verdict it WOULD return, append a JSONL
 //            line {ts,sha,wouldRoute,wouldDecide,...} to .autonomy-verify-shadow.log, but the EXISTING bite
-//            still GOVERNS: exit with the current bite's code. The routed verdict does NOT govern.
+//            still GOVERNS: exit with the current bite's code. The routed verdict does NOT govern. Opt-out.
 //   govern = the routed verdict governs (exit with the routed exit). The JSONL keeps being written as audit.
+//
+// WHY govern IS THE DEFAULT (changed from off in 0.8.3, ISSUE-6): the router is strictly SAFER than off.
+// Regression waves still route to the golden-revert bite (identical to off for that case); greenfield waves
+// that off would leave cannot-verify forever (the revert deletes the unit the new test imports) now get a
+// real mutation-kill verdict via the diff-based mutation-bite; and UNCLASSIFIABLE still fails closed at
+// exit 2. It can therefore only ever turn an off "cannot-verify" into a PROVEN pass or a real block, never
+// the reverse. It was validated through the 0.7 / 0.8 shadow period (the JSONL audit showed the routed
+// verdict agreeing with or strictly safer than the governing bite), and the project philosophy is
+// rigor-on-by-default. off and shadow remain explicit opt-outs (an explicit --mode or config value wins),
+// and the GLOBAL INVARIANT below is untouched: nothing reaches exit 0 without a recorded proof.
 //
 // GLOBAL INVARIANT (the one rule the whole gate hangs on): never exit 0 without a recorded proof, i.e. a
 // clean assertion RED from the golden bite (action caught) or a killed mutant from the mutation-bite
@@ -38,19 +48,22 @@ const NUM = (v, d) => { const n = Number(v); return Number.isFinite(n) ? n : d; 
 function sh(cmd, cwd) { return execSync(cmd, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], maxBuffer: 64 * 1024 * 1024 }); }
 
 // resolve the active mode: explicit --mode wins, else gate.verifyGate from a config, else the safe default.
-// DEFAULT is "off" (the dangerous path stays dark until an owner opts in).
+// DEFAULT is "govern" (rigor-on): the router is strictly safer than off (regression -> golden-revert,
+// greenfield -> a real mutation-kill verdict instead of cannot-verify-forever, UNCLASSIFIABLE -> exit 2),
+// validated through the 0.7/0.8 shadow period. "off" and "shadow" stay as EXPLICIT opt-outs: a --mode flag
+// or a gate.verifyGate config value still wins. This never weakens the GLOBAL INVARIANT.
 function resolveMode(args, repoRoot) {
   const cli = String(args.mode || "").toLowerCase();
-  if (cli === "off" || cli === "shadow" || cli === "govern") return cli;
+  if (cli === "off" || cli === "shadow" || cli === "govern") return cli; // explicit flag wins (opt-out path)
   const cfgPath = args.config ? args.config : (repoRoot ? join(repoRoot, "autonomy.config.json") : null);
   if (cfgPath) {
     try {
       const cfg = JSON.parse(readFileSync(cfgPath, "utf8"));
       const v = cfg && cfg.gate && typeof cfg.gate.verifyGate === "string" ? cfg.gate.verifyGate.toLowerCase() : "";
-      if (v === "off" || v === "shadow" || v === "govern") return v;
-    } catch { /* no config / unreadable -> default off */ }
+      if (v === "off" || v === "shadow" || v === "govern") return v; // explicit config wins (opt-out path)
+    } catch { /* no config / unreadable -> fall through to the rigor-on default */ }
   }
-  return "off"; // fail-closed default: behave exactly like today's gate
+  return "govern"; // fail-closed rigor-on default: the router governs (strictly safer than off)
 }
 
 // Resolve a relative import specifier from a test file to a repo-relative path, best-effort + static.

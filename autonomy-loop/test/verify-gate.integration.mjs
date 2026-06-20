@@ -261,7 +261,10 @@ T("SHADOW does not change the governing verdict (defers to the existing bite) + 
   } finally { rmrf(dir); }
 });
 
-T("verifyGate DEFAULTS to off (no --mode, no config) -> defers to the golden bite (today's behavior)", () => {
+T("verifyGate DEFAULTS to govern (no --mode, no config) -> the router governs (0.8.3 flip)", () => {
+  // 0.8.3 flipped the fail-closed default off -> govern. The router is strictly safer than off: a
+  // REGRESSION still routes to the golden-revert bite (same verdict), greenfield that off left
+  // cannot-verify now gets a real mutation-kill verdict, and UNCLASSIFIABLE still fails closed at 2.
   const dir = newRepo();
   try {
     seed(dir);
@@ -273,10 +276,10 @@ T("verifyGate DEFAULTS to off (no --mode, no config) -> defers to the golden bit
     commitAll(dir, "fix");
     assert.ok(!existsSync(join(dir, "autonomy.config.json")), "no config present");
     const r = runHook(GATE, ["--fix=HEAD", `--test=${testCmd("test/df.test.mjs")}`, "--runs=2"], dir);
-    console.log("  cmd: node hooks/verify-gate.mjs --fix=HEAD --test='node --test test/df.test.mjs' --runs=2  (no --mode -> default off)");
-    assert.ok(!/SHADOW|GOVERN/.test(r.out), "off mode must not run the router banner: " + r.out);
-    assert.ok(!existsSync(join(dir, ".autonomy-verify-shadow.log")), "off mode must not write the shadow log");
-    assert.equal(r.exit, 0, "the golden bite still governs and catches this regression: " + r.out);
+    console.log("  cmd: node hooks/verify-gate.mjs --fix=HEAD --test='node --test test/df.test.mjs' --runs=2  (no --mode -> default govern)");
+    assert.ok(/GOVERN/.test(r.out), "default is now govern: the router must run + print the GOVERN banner: " + r.out);
+    assert.ok(existsSync(join(dir, ".autonomy-verify-shadow.log")), "govern writes the audit row");
+    assert.equal(r.exit, 0, "the routed golden-revert still catches this regression: " + r.out);
   } finally { rmrf(dir); }
 });
 
