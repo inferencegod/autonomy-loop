@@ -1,21 +1,19 @@
 # autonomy-loop
 
-**Two-to-four Claude Code terminals on one repo: a builder and an adversarial reviewer pass a git baton through a frozen-invariant safety gate, with an optional planner that grills researched ideas into gated, buildable specs.** A Claude Code plugin you drop into any project and tune from one config file.
+**Two to four Claude Code terminals on one repo pass a git baton: a builder and an adversarial reviewer, plus an optional planner and researcher, gated by a frozen-invariant safety hook and a no-fabrication rule.** A plugin you drop into any project and tune from one config file. Free, MIT.
 
-> Honest framing up front: the *idea* of a self-driving builder/reviewer loop is not new (see [Prior art](#prior-art)). What this gives you is a **specific, opinionated discipline** - an adversarial multi-lens reviewer, a *frozen-invariant* gate, and a no-fabrication rule - wired together and tunable per project. The value is in the constraints, not the novelty.
+> Honest framing: the idea of a self-driving builder/reviewer loop is not new (see [Prior art](#prior-art)). What this gives you is a specific, opinionated discipline - an adversarial multi-lens reviewer, a frozen-invariant gate, and a no-fabrication rule - wired together and tunable per project. The value is in the constraints, not the novelty.
 
 ---
 
-## What it actually is
+## What it is
 
-Two terminals run `claude` in a `/loop` against the **same repo on different git worktrees**:
+Two terminals run `claude` in a `/loop` against the **same repo on different git worktrees**, passing a baton:
 
-- **Terminal 1 - Builder.** Picks up the next task, writes code + a RED-before/GREEN-after test, runs the gate, commits to the work branch, hands off.
-- **Terminal 2 - Reviewer.** Re-runs the gate itself, spawns a **5-lens critic panel** (correctness · honesty · regression · security · UX), red-teams the opposite, fixes what's safe, flags the rest, hands back.
+- **Builder.** Picks up the next task, writes code plus a RED-before / GREEN-after test, runs the gate, commits to the work branch, hands off.
+- **Reviewer.** Re-runs the gate itself, spawns a **5-lens critic panel** (correctness, honesty, regression, security, UX), red-teams the opposite, fixes what is safe, flags the rest, hands back.
 
-They never talk in chat. The only shared state is a committed markdown file - **`LOOP-STATE.md`** - that holds the baton (`turn:`, `last-builder-sha`, `last-reviewed-sha`, the next instruction each way). State lives in git, so a crash just resumes from the last commit.
-
-> **v0.6 adds an optional Planner** in front of this loop (and a Researcher in the 4-terminal power mode) that grills researched ideas into gated specs before they cost a build cycle. The diagram below is the default 2-terminal shape; see [Three shapes](#three-shapes-the-plan-lane-v06).
+They never talk in chat. The only shared state is a committed file, `LOOP-STATE.md`, holding the baton (whose turn, the last SHAs, the next instruction each way). State lives in git, so a crash just resumes from the last commit. Add a **Planner** (and a **Researcher**) to feed researched, gated specs into the loop before they cost a build cycle - see [the three shapes](#the-three-shapes).
 
 ```mermaid
 flowchart LR
@@ -33,88 +31,93 @@ flowchart LR
     R4 -. every tool call .-> GATE
 ```
 
-## Three shapes: the plan lane (v0.6)
-
-The 2-terminal loop above is the default and it **self-feeds**: when the backlog drains, the Builder invents its own next move (MODE A). v0.6 adds an optional **feeder in front of that self-feeding loop**, so the ideas it builds are researched wide and gated before they cost a build cycle. Since **v0.8.1** the shape is **presence-driven**: you pick it by which terminals you launch (each role signs into a shared roster on its first tick), not by editing a flag. `roles.<role>: "off"` is the only veto.
-
-- **2 terminals (default).** Builder + Reviewer, byte-for-byte v0.5. The Builder self-feeds via MODE A on idle.
-- **3 terminals (launch a Planner, recommended).** Open `/autonomy-loop:planner`. The **Planner** researches across lenses (product gaps, competitors, marketing, SEO, pricing, UX), then **grills** one spec into a detailed doc with clear, falsifiable **acceptance criteria** and a goal-ready build prompt. The Reviewer screens it (sourced? has an acceptance test? scoped? risk tier? real ROI?) and parks the risky ones for your GO before the Builder builds it. MODE A stays as the fallback floor.
-- **4 terminals (launch a Researcher too, power mode).** Also open `/autonomy-loop:researcher`. Research splits into its own terminal feeding an idea pool on a parallel upstream baton (a durable git-common-dir sidecar since v0.8.3), for a deep, always-full spec queue.
-
-The keystone rule: **every spec ships a falsifiable acceptance test.** That is the ground-truth signal the bite and the 5-lens panel check against; a planning layer without it is just a faster way to be wrong, so the plan gate requires it. Non-code research (battlecards, positioning, SEO, pricing) is drafted to `GROWTH.md` and parked for you to publish.
-
-## v0.8.1 + v0.8.3: presence-driven, and it hardened itself
-
-**v0.8.1** makes the shape **presence-driven**: a role joins the loop by LAUNCHING its terminal (`/autonomy-loop:<role>`), not by editing a config flag. Each command signs into a shared roster under the repo's git-common-dir, so every worktree sees the same crew with no commit and no pull lag, and the Builder/Reviewer route by who is live (a missing planner is a deadlock-safe fallback to the builder, never a wedge). `roles.<role>: "off"` is the only veto.
-
-**v0.8.3** is the dogfood-hardening release. A 181-cycle, 4-terminal run produced a field report from each seat, and the fixes became this release. The 4-terminal plan lane moved to a durable git-common-dir **sidecar** the ~10-min reconcile can no longer wipe (the bug that ate whole sessions when that state sat uncommitted on a shared branch), the build baton now **syncs before it reads its turn** (no stale-baton deadlock), the **gate-guard parses commands** instead of substring-matching (a `reset --hard` inside a quoted log note no longer false-fires), the **greenfield verify-gate** governs by default and works without a coverage tool, and **`/autonomy-upgrade` works on a hardened install** (it unlocks the read-only control plane, migrates, then re-locks). See the [CHANGELOG](CHANGELOG.md) for the full issue-to-fix map.
-
-## v0.8.0: provision or refuse
-
-**The gates that have to live in the plugin, plus the setup that provisions or refuses the rails that have to live in your infra.**
-
-A red-team of v0.7.x found that the agent and the things that guard it shared one writable trust domain: the builder could edit the gate's own config, forge the reviewer's lease, and reach prod, because the credential and the regex both lived where it could touch them. v0.8.0 splits that domain into four rings and adopts one rule. The plugin provisions each ring it can, or it **refuses to run unattended without it.** "Warn and continue" is gone for the unattended / auto-promote path.
-
-- **A preflight prober (`SessionStart`).** On every loop start it measures the *real* assurance of your setup: is the control plane writable by the agent's own uid, can the agent's credential reach prod and is prod protected by a no-bypass server ruleset, and is the reviewer a genuinely separate principal that is actually alive. It classifies a **trust tier** and feeds the detected tier into the fail-closed promotion floor, instead of the self-reported lease the red-team forged.
-- **Refuse-by-default below the hardened tier.** Unattended auto-promotion is refused unless the forge enforces it (T3). An attended local run can proceed at a lower tier only via an explicit `--i-accept-reduced-assurance` escape hatch, logged and labeled REDUCED-INDEPENDENCE. No silent downgrade.
-- **A read-only control plane.** `harden-control-plane` materializes then locks every protected path (you cannot read-only-protect a file that does not exist yet, which is how the injected `settings.json` slipped in), and a sandboxed bash tool makes an out-of-allow-list write EPERM at the OS layer regardless of interpreter or `cd`. The sandbox config itself sits outside the writable set so the agent cannot self-disable it.
-- **A provisioned prod rail.** `/autonomy-init` provisions a no-bypass branch ruleset on `prodBranch` (require a PR, block force-push, block deletion, empty bypass list so it binds even admins), and `gate.requireProdProtection` now defaults true so the preflight refuses unattended if the rail is absent.
-
-One command runs the convenient sandboxed tier:
+## Quickstart
 
 ```bash
-/autonomy-loop:launch-sandboxed   # srt wrapper: allow-only writes + an egress allowlist that also bounds the researcher
+# 1. add the marketplace + install (inside Claude Code)
+/plugin marketplace add https://github.com/inferencegod/autonomy-loop
+/plugin install autonomy-loop@autonomy-loop
+
+# 2. scaffold the config + baton in your project
+/autonomy-loop:autonomy-init
+
+# 3. launch the loop, one role per terminal
+#    Terminal 1:  claude  ->  /autonomy-loop:builder    ->  /loop 600
+#    Terminal 2 (review worktree):  claude  ->  /autonomy-loop:reviewer  ->  /loop 600
 ```
 
-A `.devcontainer/` with a default-deny egress firewall ships alongside it as the opt-in tier; a gVisor/Firecracker microVM is documented for untrusted work.
+`/loop 600` self-schedules a tick every 600 seconds. `/autonomy-init` writes `autonomy.config.json` (branches, gate commands, protected paths) and hands you the exact `git worktree add` line for the reviewer. The baton starts at `turn: human`; flip it to `turn: builder` to begin. First-run gotchas are in [Operate](#operate-first-run).
+
+## The three shapes
+
+The loop is **presence-driven**: you pick the shape by which terminals you launch. Each role signs into a shared roster on its first tick, so the Builder and Reviewer route by who is live (a missing planner is a deadlock-safe fallback to the builder, never a wedge). `roles.<role>: "off"` is the only veto.
+
+- **2 terminals (default).** Builder + Reviewer. When the backlog drains, the Builder invents its own next move (MODE A).
+- **3 terminals (recommended).** Add `/autonomy-loop:planner`. The Planner researches across lenses (product gaps, competitors, SEO, pricing, UX), grills one spec into a detailed doc with falsifiable **acceptance criteria** and a build-ready prompt, and the Reviewer screens it (sourced? has an acceptance test? scoped? risk tier? real ROI?) before the Builder may touch it.
+- **4 terminals (power mode).** Also add `/autonomy-loop:researcher`. Research splits into its own terminal feeding an idea pool on a parallel baton (a durable git-common-dir sidecar), for a deep, always-full spec queue.
+
+The keystone rule: **every spec ships a falsifiable acceptance test.** That is the ground-truth signal the gate checks against; a planning layer without it is just a faster way to be wrong. Non-code research (battlecards, positioning, pricing) is drafted to `GROWTH.md` and parked for you to publish.
+
+## What makes it rigorous
+
+A deterministic floor under every LLM judgment, on by default (a gate that ships toggled off is, for almost every user, a gate that does not exist). Each is a pure decision core with unit tests and a thin runner, no external deps.
+
+- **An adversarial reviewer.** Its only win condition is finding fault. It re-runs the gate from scratch (never trusts "tests pass"), spawns role-specialized critics, and must argue why the change is wrong before it can approve.
+- **A mechanized bite.** For each fix, the reviewer reverts the change in a throwaway worktree and reruns the new test; if the test still passes, it caught nothing and the wave fails. Brand-new code with nothing to revert routes to a **greenfield mutation-bite** that mutates the new lines and requires your test to kill a mutant. Fail-closed: never a pass without a recorded killed mutant or a clean RED.
+- **A frozen invariant.** You declare what must stay byte-identical (golden/snapshot tests, a recorded API contract). Drift requires a human GO; the loop escalates, it never silently re-baselines.
+- **A coverage ratchet + patch coverage.** Line and branch coverage each sit on a floor that only ratchets up, so the tree cannot quietly erode over hundreds of waves; patch coverage proves the lines each wave changed are themselves tested. Opt-in, see [Coverage](#coverage-opt-in).
+- **Oracle-strength gates.** A weak-assertion detector and an acceptance-test mutation-kill gate fail a test that runs a line but pins nothing about it.
+- **A money-path floor.** Any change touching billing, payments, migrations, auth, secrets, or data-deletion PARKS for an explicit human GO. The model cannot override it.
+- **A convergence terminator.** When the builder and reviewer keep trading the same failure signature, it re-scopes, escalates to a stronger model, then parks - the bounded third vote that ends silent back-and-forth.
+- **A no-fabrication rule.** Every number a build emits carries its sample size and interval, or says "building - N/30." A capability with no real data abstains visibly instead of inventing a value.
+- **A quarantined researcher.** Fetched web content is typed-extracted so it cannot smuggle a spec past the gate, verified against an injection corpus that zero payloads pass.
+
+## Security: rings and trust tiers
+
+The agent and the things that guard it must not share one writable trust domain (a builder that can edit its own gate, forge the reviewer's lease, or reach prod is no gate at all). The plugin splits that domain into rings and adopts one rule: **provision each ring it can, or refuse to run unattended without it.**
+
+- **A preflight prober** (`SessionStart`) measures the *real* assurance of your setup on every start - is the control plane writable by the agent's uid, is prod protected by a no-bypass server ruleset, is the reviewer a genuinely separate principal that is actually alive - and classifies a trust tier, feeding the detected tier into a fail-closed promotion floor instead of a self-reported lease.
+- **A read-only control plane.** `harden-control-plane` materializes then locks every protected path, and a sandboxed shell makes an out-of-allow-list write fail at the OS layer regardless of interpreter or `cd`. The sandbox config sits outside the writable set so the agent cannot self-disable it.
+- **A provisioned prod rail.** `/autonomy-init` sets a no-bypass branch ruleset on `prodBranch` (require a PR, block force-push and deletion, empty bypass list so it binds even admins).
+- **Refuse-by-default.** Unattended auto-promotion is refused below the hardened tier; an attended local run can proceed lower only via an explicit, logged `--i-accept-reduced-assurance` escape hatch. No silent downgrade.
 
 | Tier | Verifies | Auto-promotion |
 |---|---|---|
-| **T0 ATTESTED** | same uid, control plane writable, prod maybe unprotected | refused, attended only |
-| **T1 LIVENESS** | reviewer process provably alive, control plane locked, same principal | refused unattended |
+| **T0 ATTESTED** | same uid, control plane writable | refused, attended only |
+| **T1 LIVENESS** | reviewer provably alive, control plane locked, same principal | refused unattended |
 | **T2 SEPARATED** | reviewer a different uid/SID and live, control plane read-only, repo-scoped credential | allowed, local-trust |
 | **T3 HARDENED** | forge required-review ruleset the builder token cannot bypass, sandboxed checkout | allowed, unattended |
 
-Honest about the residuals: a same-uid local setup can only ever be raised, never closed, by signing or liveness; the forge (T3) is the only unattended-grade independence; the `$VAR` push is closed only by the server ruleset; the regex is a tripwire, forever. POSIX hardening ships first; on Windows the preflight refuses the local-hardening tiers and points you at the devcontainer / WSL or the OS-independent forge tier. GitHub is first-class; GitLab parity (push=No one, merge=Maintainer) is a documented section. See [SECURITY.md](SECURITY.md) for the full rings model, the tier table, and the residual map.
+Honest about the residuals: a same-uid local setup can only be raised, never closed, by signing or liveness; the forge (T3) is the only unattended-grade independence; the regex gate-guard is a tripwire, not a vault. POSIX hardening ships first; on Windows the preflight points you at the devcontainer / WSL or the forge tier. See [SECURITY.md](SECURITY.md) for the full model, the tier table, and the residual map.
 
-## v0.7.0: the ground-truth floor, rigor on by default
+> **The gate-guard hook is a defense-in-depth tripwire, not a sandbox.** It blocks the common-case dangerous actions (prod pushes from any remote, force-push, history rewrite, protected-path writes) and returns a structured denial the model escalates on, but it cannot anticipate every trick and is not reliably enforced for sub-agent tool calls. The real backstops are server-side branch protection on `prodBranch`, read-only permissions on frozen files, and a disposable checkout. The hook reduces blast radius; your infra contains it.
 
-v0.7.0 puts a deterministic floor under every LLM judgment and flips the defaults so the gates are ON, not buried in JSON:
+## Configure
 
-- **The bite now covers brand-new code.** When there is nothing to revert to, a greenfield **mutation-bite** mutates the new module's covered lines and requires your test to kill a mutant. A deterministic router (`hooks/verify-gate.mjs`) picks revert-vs-mutate per commit and **governs** the verdict; it is fail-closed (never a pass without a recorded killed-mutant or a clean RED), so it can only block, never silently pass.
-- **A money-path floor.** A path/secret/migration detector (`hooks/mpid.mjs`) PARKS any change touching billing, payments, migrations, auth, secrets, or data-deletion for an explicit human GO. The model cannot override it.
-- **Oracle-strength gates.** A weak-assertion detector and an acceptance-test mutation-kill gate fail a test that runs a line but pins nothing about it. ON by default; the speed opt-out is the only relaxation and it never touches money-path or irreversible work.
-- **A convergence terminator.** When the builder and reviewer keep trading the same failure signature (even as the tree changes every wave, so the no-progress breaker never fires), it re-scopes, then escalates to a stronger model, then parks. The bounded "third vote" that ends silent back-and-forth.
-- **A la carte roles + single-CLI.** Roles compose freely and auto-detect from running terminals via a git lease; a mandatory independent-verifier safety floor blocks promotion without a live reviewer. `coordination.mode=single-cli` runs the roles as subagents in one terminal (labeled **REDUCED-INDEPENDENCE**: the deterministic gate still binds, the LLM critique goes advisory) and refuses to run if the gate is off.
-- **A quarantined researcher.** Fetched web content is typed-extracted (CaMeL-style) so it cannot smuggle a spec, and a fresh-URL taint gate blocks auto-promotion, verified against a 55-payload injection corpus that zero payloads pass.
+Copy `autonomy.config.example.json` to `autonomy.config.json` at your repo root. Key knobs:
 
-Every gate above is a pure decision core with unit tests and a thin runner, no external deps. Rigor is ON because a gate that ships toggled off is, for almost every user, a gate that does not exist.
+| knob | what it does |
+|---|---|
+| `workBranch` / `prodBranch` | the loop only ever pushes `workBranch`; `prodBranch` is gated |
+| `worktreePath` | where the Reviewer's worktree lives |
+| `gate.test` / `gate.build` / `gate.lint` | your real commands - the reviewer re-runs them |
+| `gate.frozenInvariant` | what must stay byte-identical without a human re-baseline |
+| `gate.coverage` / `gate.patchTarget` | optional coverage ratchet + patch-coverage gates (see below) |
+| `protectedPaths` | edits and shell writes (`rm`/`mv`/`cp`/redirect/`sed -i`) here are blocked; the defaults also protect the loop's own config, coverage baseline, and hooks so it cannot disarm itself |
+| `roles.<role>` | `auto` / `required` / `off` - the only reason to edit roles (the shape is presence-driven) |
+| `models.builder` / `reviewerCritics` / `reviewerJudge` | builder + cheap critics + escalation judge |
+| `honestyRule` | the anti-fabrication contract injected into both prompts |
 
-## Why you might want it
+## Coverage (opt-in)
 
-- **The reviewer is adversarial by construction.** Its only win condition is finding fault. It re-runs the gate from scratch (never trusts the builder's "tests pass"), spawns role-specialized critics, and must argue *why the change is wrong* before it's allowed to approve.
-- **A frozen invariant the loop can't quietly re-baseline.** You declare what must stay byte-identical (golden/snapshot tests, a recorded API contract). Drift requires a human GO - the loop escalates, it doesn't overwrite.
-- **A no-fabrication rule.** Every number a build emits must carry its sample size + interval, or say "building - N/30." A capability with no real data abstains *visibly* instead of inventing a plausible value.
-- **The plan is gated too (v0.6).** With the Planner on, every spec it grills must ship a *falsifiable acceptance test* before the Builder may touch it. That test is the ground-truth signal the bite and the 5-lens panel check against; a planning layer without it is just a faster way to be wrong. See [Three shapes](#three-shapes-the-plan-lane-v06).
-- **Cost-aware.** Critics run on a cheap model in parallel; the expensive judge is only invoked when a wave escalates. See [Cost](#cost).
-- **Portable.** One `autonomy.config.json` drives the branch names, gate commands, models, protected paths, and honesty rule. The plugin is project-agnostic.
+Coverage is a third and fourth gate on top of the bite. Set `gate.coverage` to a command that writes an Istanbul `coverage-summary.json`:
 
-## Install
-
-```bash
-# 1. add this repo as a plugin marketplace, then install
-claude plugin marketplace add https://github.com/inferencegod/autonomy-loop
-claude plugin install autonomy-loop
-
-# 2. in your project, scaffold the config + baton
-/autonomy-loop:autonomy-init
-
-# 3. edit autonomy.config.json (branches, gate commands, protected paths), then:
-#    Terminal 1:  claude  ->  /autonomy-loop:builder   ->  /loop 600
-#    Terminal 2 (in the review worktree):  claude  ->  /autonomy-loop:reviewer  ->  /loop 600
+```jsonc
+// autonomy.config.json
+"gate": { "coverage": "c8 --reporter=json-summary --reporter=json --reporter=text npm test", "patchTarget": 100 }
 ```
 
-`/loop 600` = self-schedule every 600s (10 min). Commands are namespaced `/autonomy-loop:<command>`. With the v0.6 plan lane on, add a third terminal: `claude` -> `/autonomy-loop:planner` -> `/loop 600` (and a fourth, `/autonomy-loop:researcher`, for the 4-terminal power mode). See [Three shapes](#three-shapes-the-plan-lane-v06).
+The ratchet (`hooks/coverage-ratchet.mjs`) blocks any wave that lowers line or branch coverage and bumps the floor on a real improvement, so the whole tree cannot erode. Patch coverage (`gate.patchTarget`: 0 off, 80 standard, 100 strict) scores only the lines a wave changed, so new untested code cannot hide behind a flat global percent. Both work out of the box if your repo already reports coverage (jest, vitest, or `node --test` on Node 22+); otherwise add `c8`. With no coverage tool, both stay off and the loop still runs on the bite, the reviewer, and the safety hook.
 
 ## Operate (first run)
 
@@ -125,9 +128,9 @@ A minute of setup avoids the common failure modes:
 - **Start green.** Make sure your test/build/lint pass on a clean checkout before you launch. The gate reverts any wave that goes red, so a repo that starts red will look like the loop is undoing your code.
 - **Approve the first task.** After init the baton sits at `turn: human`; flip it to `turn: builder` to start. Nothing runs until you do.
 - **How to stop it.** Set `turn: human` in `LOOP-STATE.md` (or cancel the `/loop`). Both terminals exit on the next tick.
-- **It costs tokens.** Two agents looping continuously is the point. Tune `loopIntervalSec` up if you do not need a 10-minute cadence, and the built-in `breaker` (in the config) parks the loop after a hard epoch cap or a run of no-progress waves so it cannot burn unattended forever.
+- **It costs tokens.** Agents looping continuously is the point. Tune `loopIntervalSec` up if you do not need a 10-minute cadence, and the built-in `breaker` parks the loop after a hard epoch cap or a run of no-progress waves so it cannot burn unattended forever.
 
-## Upgrading from an earlier version
+## Upgrading
 
 When you update the plugin, the new commands and hooks come with it, but your repo's `autonomy.config.json` and `LOOP-STATE.md` are per-checkout and do not change on their own. After updating, run one command in your repo:
 
@@ -135,82 +138,28 @@ When you update the plugin, the new commands and hooks come with it, but your re
 /autonomy-upgrade
 ```
 
-It is safe and idempotent: it only ADDS the knobs and baton fields a newer version introduced (with sane defaults), never overwrites a value you set, and never resets a running baton. Then `/reload` the plugin in both terminals. Re-running `/autonomy-init` does the same top-up if a config already exists, so either path works. You do not need to hand-edit any JSON.
-
-## Configure
-
-Copy `autonomy.config.example.json` -> `autonomy.config.json` at your repo root (it's gitignored - per-checkout). Key knobs:
-
-| knob | what it does |
-|---|---|
-| `workBranch` / `prodBranch` | the loop only ever pushes `workBranch`; `prodBranch` is gated |
-| `worktreePath` | where Terminal 2's worktree lives |
-| `gate.test` / `gate.build` / `gate.lint` | your real commands - the reviewer re-runs them |
-| `gate.coverage` | optional third gate: a command that emits a coverage summary; the reviewer ratchets coverage so it can never silently drop (see [Coverage ratchet](#coverage-ratchet-the-third-gate)) |
-| `gate.frozenInvariant` | what must stay byte-identical without a human re-baseline |
-| `protectedPaths` | edits **and** shell writes (`rm`/`mv`/`cp`/redirect/`sed -i`) here are blocked by the hook; the defaults also protect the loop's own config, coverage baseline, and hooks so it cannot disarm itself |
-| `models.builder` / `reviewerCritics` / `reviewerJudge` | builder + cheap critics + escalation judge |
-| `honestyRule` | the anti-fabrication contract injected into both prompts |
-
-## Safety model & limitations
-
-**Read this before you trust it.** The `gate-guard` PreToolUse hook is a **defense-in-depth tripwire, not a sandbox.** It catches the *common-case* dangerous actions and returns a structured denial the model can act on (escalate to a human), instead of crashing the agent.
-
-What it blocks today (with adversarial unit tests in [`autonomy-loop/test/gate-guard.test.mjs`](autonomy-loop/test/gate-guard.test.mjs)): pushes/fast-forwards to `prodBranch` from **any** remote (not just `origin`; including `src:main` / `HEAD:refs/heads/...` refspecs), force-push (including bundled flags like `-uf`), remote-branch deletion (`--delete`), local ref destruction (`branch -D`, `update-ref -d`, `reflog expire`, `checkout --orphan`), history rewrite / `reset --hard` / `--mirror`, `gh` PR-merge/release/workflow shipping, and edits **or** shell writes/deletes (broadened to `dd` / `install` / `ln` / numbered redirects, and matched against a quote-stripped copy so `test/gol''den/x` cannot evade it) targeting `protectedPaths`.
-
-What it **cannot** do - be honest with yourself:
-
-- A regex over shell commands cannot anticipate every trick (novel tools, exotic git refs, a script that writes a script). Treat it as a seatbelt, not a vault.
-- PreToolUse hooks are **not reliably enforced for sub-agent tool calls** - a spawned agent may bypass the hook. Don't rely on it as your only barrier.
-- If `autonomy.config.json` is missing/unparseable, the hook prints a **visible warning** and falls back to universal git guards only (`protectedPaths` are *not* enforced). It fails loud, not silent - but it does fail open on paths.
-
-**Real backstops** (use them in addition, not instead): server-side **branch protection** on `prodBranch`, **read-only file permissions** on golden/frozen files, and running the loop in a **container / disposable checkout**. The hook reduces blast radius; your infra is what actually contains it. `/autonomy-init` now checks `prodBranch` protection and offers to set a ruleset (require a PR, block force-push, block deletion); it warns and continues if it cannot, so the server-side rail is set up at init rather than assumed.
-
-## Coverage ratchet (the third gate)
-
-The builder writes a RED-before-green test for each change, and the reviewer runs the per-fix **bite** (now a real gate, [`hooks/bite.mjs`](autonomy-loop/hooks/bite.mjs)): it reverts the change in a throwaway worktree, reruns the test, and requires an assertion failure, so a test that still passes when the fix is reverted fails the gate (an exit code is not treated as a valid RED, and a flake guard reruns N times). That proves every *new* test catches its own bug. It says nothing about the rest of the tree slowly losing coverage over hundreds of waves. The coverage ratchet closes that gap. Line and branch coverage each sit on their own floor in the stored baseline (`.autonomy-coverage.json`), floored independently and only ever ratcheting up, so holes cannot quietly pile up wave after wave. A new conditional whose else-arm is never tested is caught by the branch floor even when the line number holds.
-
-This is the drift layer; the bite is the assertion layer, and they ship together on purpose. Line coverage measures execution, not assertions (a suite with every assert deleted still scores 100%), so the ratchet is never a quality claim on its own. Pairing a coverage ratchet with a per-change bite as a built-in loop invariant is the part no mainstream coding agent ships today. The pieces exist as CI a human wires up, never inside the agent's own loop.
-
-It is opt-in. Set `gate.coverage` to a command that writes an Istanbul `coverage-summary.json`:
-
-```jsonc
-// autonomy.config.json
-"gate": { "coverage": "c8 --reporter=json-summary --reporter=json --reporter=text npm test", "patchTarget": 100 }
-```
-
-The reviewer then runs the bundled script, which blocks any wave that lowers coverage and bumps the floor on a real improvement:
-
-```bash
-node "$CLAUDE_PLUGIN_ROOT/hooks/coverage-ratchet.mjs"   # reads coverage/coverage-summary.json + .autonomy-coverage.json
-```
-
-The pure decision core lives in [`autonomy-loop/hooks/coverage-ratchet.mjs`](autonomy-loop/hooks/coverage-ratchet.mjs), unit-tested in [`autonomy-loop/test/coverage-ratchet.test.mjs`](autonomy-loop/test/coverage-ratchet.test.mjs). Leave `gate.coverage` empty to skip it.
-
-A fourth gate, patch coverage, is opt-in via `gate.patchTarget` (0 off, 80 standard, 100 strict). It scores only the lines a wave changed, so new untested code cannot hide behind a flat global percent, the ratchet's blind spot. It reuses the same coverage run (add `--reporter=json` so `coverage-final.json` is emitted) and lives in [`autonomy-loop/hooks/patch-coverage.mjs`](autonomy-loop/hooks/patch-coverage.mjs), unit-tested in [`autonomy-loop/test/patch-coverage.test.mjs`](autonomy-loop/test/patch-coverage.test.mjs). The ratchet stops the whole tree eroding; patch coverage proves the code each wave just wrote is itself tested.
-
-Coverage works out of the box if your repo already reports it (jest or vitest with their coverage provider, or `node --test` on Node 22+, which emits the Istanbul summary); otherwise add a tool like `c8`. With no coverage tool the third and fourth gates simply stay off and the loop still runs on the bite, the reviewer, and the safety hook.
+It is safe and idempotent: it only ADDS the knobs and baton fields a newer version introduced (with sane defaults), never overwrites a value you set, and never resets a running baton. On a hardened install it unlocks the read-only control plane, migrates, then re-locks. Then `/reload` the plugin in every terminal. The [CHANGELOG](CHANGELOG.md) has the full per-version history.
 
 ## Cost
 
-This burns tokens - two agents running continuously is the point. To keep it sane:
+This burns tokens - agents running continuously is the point. To keep it sane:
 
 - Critics default to a **cheap model in parallel**; the **Opus-class judge fires only on escalation** (frozen-drift, protected-path, or a split panel). Most waves never touch it.
 - Effort is **scaled to the diff**: pure-doc/trivial waves get one quick pass, not the full panel.
-- Tune `loopIntervalSec` up if you don't need 10-minute cadence.
-- The "model" knobs are **labels written into prompts, not a runtime switch** - set the actual model when you launch each terminal (`claude --model ...`). The config keeps them consistent; it doesn't enforce them.
+- Tune `loopIntervalSec` up if you do not need a 10-minute cadence.
+- The `models` knobs are **labels written into prompts, not a runtime switch** - set the actual model when you launch each terminal (`claude --model ...`). The config keeps them consistent; it does not enforce them.
 
-## When NOT to use this
+## When not to use this
 
-- One-off scripts or throwaway prototypes - the ceremony isn't worth it.
+- One-off scripts or throwaway prototypes - the ceremony is not worth it.
 - Repos with no meaningful test/build gate - the reviewer has nothing to stand on.
 - Anything where an agent pushing to a shared branch unattended is unacceptable, even gated.
-- If you won't set up the real backstops above, run it only on a disposable checkout.
+- If you will not set up the real backstops above, run it only on a disposable checkout.
 
 ## Prior art
 
-Self-driving and review-loop patterns are a crowded space, and this stands on them. Anthropic ships first-party `/loop`, hooks, and agent-team primitives; the community has shipped builder/reviewer and "keep going" loops (e.g. claude-review-loop, autoloop, the Ralph Wiggum pattern). This project's contribution is the *combination*: an adversarial multi-lens reviewer + a human-gated frozen invariant + a no-fabrication discipline + per-project config, packaged as one installable plugin. If you've built something similar, I'd genuinely like to compare notes.
+Self-driving and review-loop patterns are a crowded space, and this stands on them. Anthropic ships first-party `/loop`, hooks, and agent-team primitives; the community has shipped builder/reviewer and "keep going" loops (claude-review-loop, autoloop, the Ralph Wiggum pattern). This project's contribution is the *combination*: an adversarial multi-lens reviewer + a human-gated frozen invariant + a no-fabrication discipline + per-project config, packaged as one installable plugin. If you have built something similar, I would genuinely like to compare notes.
 
 ## License
 
-MIT - see [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE).

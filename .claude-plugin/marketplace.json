@@ -3,6 +3,6 @@
   "name": "autonomy-loop",
   "owner": { "name": "inferencegod" },
   "plugins": [
-    { "name": "autonomy-loop", "source": "./autonomy-loop", "description": "Builder / reviewer / planner / researcher Claude Code terminals pass a git baton through a deterministic, frozen-invariant gate with an adversarial 5-lens reviewer and a per-fix bite. v0.8.0 adds a rings + provision-or-refuse security posture: a SessionStart preflight classifies a trust tier (ATTESTED -> LIVENESS -> SEPARATED -> HARDENED) and refuses unattended auto-promotion below the forge-grade tier, with a read-only control plane, a sandboxed bash tool, a repo-scoped credential, and a provisioned no-bypass prod ruleset." }
+    { "name": "autonomy-loop", "source": "./autonomy-loop", "description": "Builder / reviewer / planner / researcher Claude Code terminals pass a git baton through a deterministic, frozen-invariant gate with an adversarial 5-lens reviewer and a mechanized bite. Presence-driven roles: launch a terminal to add one. A rings + provision-or-refuse security posture (a SessionStart preflight refuses unattended auto-promotion below a hardened trust tier, with a read-only control plane, a sandboxed shell, a repo-scoped credential, and a no-bypass prod ruleset), plus a greenfield mutation-bite, a money-path floor, and a coverage ratchet. Rigor on by default. Hardened across a 181-cycle self-dogfood through v0.8.4." }
   ]
 }
