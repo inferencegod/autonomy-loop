@@ -17,7 +17,7 @@ test("AC2: legacy {planner:true} -> planner:auto", () => {
   assert.equal(cfg.roles.planner, "auto");
 });
 
-test("AC3: idempotent — running twice yields no further change", () => {
+test("AC3: idempotent - running twice yields no further change", () => {
   const first = migrateRoles({ roles: { planner: true, research: false } }).cfg;
   assert.equal(isMigrated(first), true);
   const second = migrateRoles(first);

@@ -12,7 +12,7 @@ export function extractTyped(rawWebText, opts = {}) {
   if (!text.trim()) return { reject: true, reason: "empty" };
 
   // Reject if the content is trying to act as an INSTRUCTION rather than data. These are the
-  // classic indirect-prompt-injection markers. We do not "clean and proceed" — we reject, because
+  // classic indirect-prompt-injection markers. We do not "clean and proceed" - we reject, because
   // a quarantined source has no business issuing instructions (architecture, not filtering).
   const INJECTION_MARKERS = [
     /\bignore\s+(all\s+)?(previous|prior|above)\s+instructions?\b/i,
@@ -53,7 +53,7 @@ function sanitizeFields(fields) {
   for (const [k, v] of Object.entries(fields)) {
     if (typeof v === "string") out[k] = v.slice(0, 200);
     else if (typeof v === "number" || typeof v === "boolean") out[k] = v;
-    // objects/arrays/functions are dropped — only scalar facts survive
+    // objects/arrays/functions are dropped - only scalar facts survive
   }
   return out;
 }

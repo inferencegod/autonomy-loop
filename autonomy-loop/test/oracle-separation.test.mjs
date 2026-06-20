@@ -35,7 +35,7 @@ test("irreversible treated like money-path", () => {
   assert.equal(r.park, true);
 });
 
-test("AC3: plateau guard — too many distinct families -> park", () => {
+test("AC3: plateau guard - too many distinct families -> park", () => {
   const asg = { specAuthor: { family: "a" }, testAuthor: { family: "b" }, implementer: { family: "c" }, reviewer: { family: "d" } };
   const r = checkSeparation(asg, { tier: "money-path", maxVoters: 3 });
   assert.equal(r.park, true);

@@ -1,4 +1,4 @@
-# autonomy-loop — LAUNCH COPY (final, locked)
+# autonomy-loop - LAUNCH COPY (final, locked)
 
 Going with Option A: video tweet + one install reply. No em dashes. Everything below is copy-paste ready.
 
@@ -35,12 +35,12 @@ If you've watched an agent break your repo and lie about it, this is the opposit
 ## 3. POCKET REPLIES  ·  on standby, drop only if it earns it
 ═══════════════════════════════════════════════════════════════════
 
-### A — how it stays safe + honest  (drop if the post is climbing)
+### A - how it stays safe + honest  (drop if the post is climbing)
 ```
 How it stays safe: a hook blocks prod pushes, force-pushes, history rewrites, and protected-file edits. A frozen-invariant gate keeps your output byte-identical until you re-baseline. Every stat it reports carries its sample size, or says "building". No fabricated wins.
 ```
 
-### B — the cost question  (drop when someone asks "isn't 2 Opus terminals expensive?")
+### B - the cost question  (drop when someone asks "isn't 2 Opus terminals expensive?")
 ```
 "Two Opus terminals, isn't that pricey?" It's tunable. Set the model per role in autonomy.config.json, stretch the loop interval, and effort scales to risk: cheap passes on trivial diffs, deep thinking only on dangerous ones. Off-turn ticks exit early, near-free.
 ```

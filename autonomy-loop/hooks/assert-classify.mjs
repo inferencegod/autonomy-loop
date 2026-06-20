@@ -2,7 +2,7 @@
 // implementing the "All Smoke, No Alarm" taxonomy (arXiv:2606.18168): W1 no assertion, W2
 // existence/non-null only, W3 boolean-only (no value compared), W4 mock/call-verification only,
 // W5 snapshot-only; S1 value equality/comparison, S2 error/containment/type checks, S3 >=2 distinct
-// strong types. HARD GATE in the loop: W1–W5 fails, require >=S1. Language-agnostic-ish: covers
+// strong types. HARD GATE in the loop: W1-W5 fails, require >=S1. Language-agnostic-ish: covers
 // pytest, Jest/Vitest, JUnit/AssertJ, Go testing, RSpec. No I/O, no deps. (Operates on ADDED lines.)
 
 // Strong VALUE assertions (S1): an asserted value is compared to an expected value.
@@ -25,7 +25,7 @@ const S2_PATTERNS = [
   /\bexpect\s*\(.*\)\.toMatch\s*\(/, /\bassertRegex\b/i,
 ];
 
-// WEAK: boolean-only (W3) — asserts truthiness without comparing a value.
+// WEAK: boolean-only (W3) - asserts truthiness without comparing a value.
 const W3_PATTERNS = [
   /\bassert\s+(True|False)\b/, /\bassertTrue\s*\(/i, /\bassertFalse\s*\(/i,
   /\bexpect\s*\([^)]*\)\.toBeTruthy\s*\(\)/, /\bexpect\s*\([^)]*\)\.toBeFalsy\s*\(\)/,
@@ -74,7 +74,7 @@ export function classifyOracle(added) {
 }
 
 // decideAssertionGate(addedLines, { minCategory='S1' }) -> { pass: bool, category, reason }
-// HARD GATE: W1–W5 fail; require >= the configured strong floor (default S1).
+// HARD GATE: W1-W5 fail; require >= the configured strong floor (default S1).
 export function decideAssertionGate(added, opts = {}) {
   const min = opts.minCategory || "S1";
   const { category, strong } = classifyOracle(added);

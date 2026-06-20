@@ -11,7 +11,7 @@ test("AC1: a row added to migrations/ -> irreversible -> PARK", () => {
   assert.equal(r.park, true);
 });
 
-test("AC1b: LLM cannot override the floor — even if both models vote additive, migration parks", () => {
+test("AC1b: LLM cannot override the floor - even if both models vote additive, migration parks", () => {
   const floor = classifyChange([f("migrations/x.sql", "ALTER TABLE accounts ADD COLUMN balance int;")]);
   const d = decideAdditive([{ family: "opus", tier: "additive" }, { family: "gpt", tier: "additive" }], floor);
   assert.equal(d.park, true);

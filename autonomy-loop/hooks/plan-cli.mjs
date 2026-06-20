@@ -16,7 +16,7 @@
 // working-tree file). This eliminates the uncommitted-shared-branch contradiction at the root.
 //
 // INTEGRITY GUARD (belt-and-suspenders, since the sidecar can't be wiped by the reconcile anymore):
-// set-turn refuses a baton that looks WIPED — a plan-epoch that goes BACKWARDS (a wiped baton reverts
+// set-turn refuses a baton that looks WIPED - a plan-epoch that goes BACKWARDS (a wiped baton reverts
 // to epoch 0), last-research-cycle reverted to the sentinel after being set, or the queue emptied
 // without a recorded drain. On refusal it exits non-zero with a HALT message so the prompt parks to
 // FOR-REVIEW.md + turn:human and NEVER treats a corrupted/blank template as a fresh research turn.
