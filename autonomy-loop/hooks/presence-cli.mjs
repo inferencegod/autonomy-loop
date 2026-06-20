@@ -59,7 +59,8 @@ function main(argv) {
     if (!KNOWN.includes(role)) { console.error(`presence-cli: unknown role '${role}'. one of: ${KNOWN.join(", ")}`); process.exit(2); }
     const ttl = Number(args.ttl);
     if (!Number.isFinite(ttl) || ttl <= 0) { console.error("presence-cli: signin needs --ttl=<positive seconds>"); process.exit(2); }
-    console.log(`signed in: ${role} (ttl ${ttl}s) -> ${signin(dir, role, ttl, now)}`);
+    const target = signin(dir, role, ttl, now);
+    if (!args.quiet) console.log(`signed in: ${role} (ttl ${ttl}s) -> ${target}`);
     return;
   }
   if (cmd === "roster") { for (const r of liveRoster(readLeases(dir), now)) console.log(r); return; }

@@ -22,6 +22,17 @@
 //   Windows: icacls <path> /deny "<agentuser>:(W)" best-effort (deny write to the agent principal).
 //
 // Idempotent: re-running re-touches nothing already present and re-applies the same locks (a no-op).
+//
+// --unlock (the INVERSE, best-effort): /autonomy-upgrade must REWRITE autonomy.config.json, but the config
+// is itself a protectedPaths entry, so a hardened install has it locked read-only and the migrate hooks
+// cannot write it. So `--unlock` walks the SAME planHardening targets and undoes the lock per target:
+//   POSIX: chattr -i (drop immutable; needs the file's OWNER, so it may fail if the path was chown'd to a
+//          non-agent user) THEN chmod u+w (file -> 0644, dir -> 0755) so the inode is writable again.
+//   Windows: icacls <path> /remove:d "<agentuser>" (remove the deny ACE).
+// Unlock is best-effort by nature: an immutable or owned-by-another inode cannot be forced, so we report a
+// clear per-target result and, for anything we could not unlock, print that the file's OWNER must run
+// chattr -i / adjust ownership first (same durable-barrier truth the harden GUIDANCE states). The upgrade
+// flow is: --unlock -> run the migrate hooks (config now writable) -> re-run with NO flag to re-lock.
 
 import { existsSync, statSync, closeSync, openSync, chmodSync, readFileSync } from "node:fs";
 import { join, isAbsolute } from "node:path";
@@ -96,6 +107,25 @@ function lockWindows(absPath, agentUser, out) {
   return out;
 }
 
+function unlockPosix(absPath, isDir, out) {
+  // INVERSE of lockPosix, best-effort. Drop the immutable attribute FIRST (chmod cannot touch an immutable
+  // inode), then restore write. chattr -i needs the file's OWNER: if the path was chown'd to a non-agent
+  // user (the durable barrier the harden GUIDANCE recommends), this fails and the owner must run it.
+  try { execFileSync("chattr", ["-i", absPath], { stdio: "pipe" }); out.chattr = true; }
+  catch { out.chattr = false; } // not immutable, no chattr binary, or owned-by-another: report, do not crash
+  // chmod u+w: restore the conventional writable mode (file -> 0644, dir -> 0755). If the inode is still
+  // immutable (chattr -i above did not stick), this throws; we capture it so the per-target line shows FAIL.
+  try { chmodSync(absPath, isDir ? 0o755 : 0o644); out.chmod = true; } catch (e) { out.chmod = false; out.chmodErr = String(e && e.message || e); }
+  return out;
+}
+
+function unlockWindows(absPath, agentUser, out) {
+  // INVERSE of lockWindows: remove the deny ACE for the agent principal so writes are no longer denied.
+  try { execFileSync("icacls", [absPath, "/remove:d", agentUser], { stdio: "pipe" }); out.icacls = true; }
+  catch (e) { out.icacls = false; out.icaclsErr = String(e && e.message || e); }
+  return out;
+}
+
 function currentUser(platform) {
   try {
     if (platform === "win32") return process.env.USERNAME || process.env.USER || "%USERNAME%";
@@ -121,26 +151,41 @@ function main(argv) {
   const dirHint = new Map();
   for (const p of declared) { const s = typeof p === "string" ? p.trim() : ""; if (s) dirHint.set(isAbsolute(s) ? s : join(base, s), isDirTarget(s)); }
 
+  // --unlock walks the SAME planHardening targets and undoes the lock, so the upgrade can rewrite the config.
+  const unlock = args.unlock === true;
   const { targets } = planHardening(cfg, { repoRoot: base, platform });
   const report = [];
   let failures = 0;
   for (const t of targets) {
-    const looksDir = dirHint.get(t.path) === true || (existsSync(t.path) && safeIsDir(t.path));
-    const mat = materialize(t.path, looksDir);
-    const isDir = looksDir || (existsSync(t.path) && safeIsDir(t.path));
-    const lock = platform === "win32" ? lockWindows(t.path, agentUser, {}) : lockPosix(t.path, isDir, {});
-    const ok = mat !== "create-failed" && mat !== "missing-dir"
-      && (platform === "win32" ? lock.icacls === true : lock.chmod === true);
-    if (!ok) failures++;
-    report.push({ path: t.path, source: t.source, materialize: mat, ...lock, ok });
+    // Shared iteration: lock and unlock walk the same target set; only the per-target action differs.
+    const r = unlock
+      ? applyUnlock(t, { platform, agentUser, dirHint })
+      : applyLock(t, { platform, agentUser, dirHint });
+    if (!r.ok) failures++;
+    report.push(r);
   }
 
   for (const r of report) {
     const lockStr = platform === "win32"
-      ? `icacls-deny=${r.icacls}`
+      ? `icacls-${unlock ? "remove" : "deny"}=${r.icacls}`
       : `chmod=${r.chmod} chattr=${r.chattr}`;
-    process.stdout.write(`[harden] ${r.ok ? "OK " : "FAIL"} ${r.materialize.padEnd(13)} ${lockStr}  ${r.path}\n`);
+    const tag = unlock ? "unharden" : "harden";
+    process.stdout.write(`[${tag}] ${r.ok ? "OK " : "FAIL"} ${r.materialize.padEnd(13)} ${lockStr}  ${r.path}\n`);
   }
+  if (unlock) {
+    if (platform !== "win32" && failures > 0) {
+      process.stdout.write(
+        "[unharden] GUIDANCE: a target that could not be unlocked is immutable or owned by a non-agent user.\n"
+        + "[unharden] chattr -i needs the file's OWNER. As that owner (or a non-agent admin), run:\n"
+        + `[unharden]   chattr -i <path> && chmod u+w <path>   for each FAIL above, e.g. ${JSON.stringify(report.filter((r) => !r.ok).map((r) => r.path))}\n`
+        + "[unharden] then re-run /autonomy-upgrade. Ownership by a non-agent principal is the durable barrier\n"
+        + "[unharden] (same reason the harden GUIDANCE recommends it), so the agent alone cannot force this.\n"
+      );
+    }
+    process.stdout.write(`[unharden] ${failures === 0 ? "all targets unlocked (now writable)." : failures + " target(s) could NOT be unlocked (see GUIDANCE above); the rest are writable."}\n`);
+    process.exit(failures === 0 ? 0 : 1); // signal partial failure, but the caller is NOT aborted by this
+  }
+
   if (platform !== "win32") {
     process.stdout.write(
       "[harden] GUIDANCE: chmod/chattr that the agent uid set, a root-equivalent agent could in principle reset.\n"
@@ -151,6 +196,28 @@ function main(argv) {
   }
   process.stdout.write(`[harden] ${failures === 0 ? "all targets locked." : failures + " target(s) FAILED to lock (see above)."}\n`);
   process.exit(failures === 0 ? 0 : 1); // fail-closed: a target we could not lock is a non-zero exit
+}
+
+// PER-TARGET LOCK (byte-for-byte the prior inline loop body): materialize-then-lock one target, returning
+// its report record. Factored out only so --unlock can reuse the same target iteration in main().
+function applyLock(t, { platform, agentUser, dirHint }) {
+  const looksDir = dirHint.get(t.path) === true || (existsSync(t.path) && safeIsDir(t.path));
+  const mat = materialize(t.path, looksDir);
+  const isDir = looksDir || (existsSync(t.path) && safeIsDir(t.path));
+  const lock = platform === "win32" ? lockWindows(t.path, agentUser, {}) : lockPosix(t.path, isDir, {});
+  const ok = mat !== "create-failed" && mat !== "missing-dir"
+    && (platform === "win32" ? lock.icacls === true : lock.chmod === true);
+  return { path: t.path, source: t.source, materialize: mat, ...lock, ok };
+}
+
+// PER-TARGET UNLOCK (the inverse, best-effort): no materialize (we never create on unlock); we only undo the
+// lock on a target that exists. A missing target is reported as a no-op success (nothing to unlock).
+function applyUnlock(t, { platform, agentUser, dirHint }) {
+  if (!existsSync(t.path)) return { path: t.path, source: t.source, materialize: "absent", ok: true };
+  const isDir = dirHint.get(t.path) === true || safeIsDir(t.path);
+  const lock = platform === "win32" ? unlockWindows(t.path, agentUser, {}) : unlockPosix(t.path, isDir, {});
+  const ok = platform === "win32" ? lock.icacls === true : lock.chmod === true;
+  return { path: t.path, source: t.source, materialize: "unlocked", ...lock, ok };
 }
 
 function safeIsDir(p) { try { return statSync(p).isDirectory(); } catch { return false; } }

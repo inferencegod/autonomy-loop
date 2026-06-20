@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 // hooks/preflight-run.mjs - the SessionStart RUNNER (impure layer) for the pure decidePreflight core
-// (preflight.mjs). v0.8 "provision or refuse": measure the ACTUAL assurance of this setup and, if the
-// gate cannot defend itself, REFUSE TO START (non-zero exit blocks the session) instead of warning and
-// continuing. Gathers four probes, calls decidePreflight, then either blocks with the mapped REFUSALS
-// strings or prints the banner and persists allowUnattended for the loop / promotion-guard to read.
+// (preflight.mjs). v0.8 "provision or refuse": measure the ACTUAL assurance of this setup. An ATTENDED
+// session always STARTS (exit 0) with a one-line heads-up when the rails are not all real; the real
+// unattended protection is downstream (the promotion-guard reads allowUnattended and blocks auto-promotion).
+// Only an explicitly unattended launch (AUTONOMY_UNATTENDED=1 or --refuse-on-reduced-assurance) hard-REFUSES
+// with a non-zero exit. Gathers four probes, calls decidePreflight, persists allowUnattended, prints the banner.
 //
 // FAIL-CLOSED throughout: an unmeasurable probe resolves to its UNSAFE value, never its safe one. A
 // writable-or-unprovable control plane means the gate could disable itself, so we refuse to start; a
@@ -188,17 +189,7 @@ async function main() {
     process.exit(1);
   }
 
-  if (!decision.allowStart) {
-    process.stderr.write("[autonomy-loop] REFUSING TO START -- the gate cannot defend itself:\n");
-    for (const key of decision.refusals) {
-      if (REFUSALS[key]) process.stderr.write("  - " + REFUSALS[key] + "\n");
-    }
-    process.stderr.write("\n" + decision.banner + "\n");
-    process.exit(1); // non-zero blocks the SessionStart
-  }
-
-  // Allowed to start. Persist the decision so the loop / promotion-guard reads allowUnattended without
-  // re-probing, and surface any remaining refusals (auto-promotion may still be off) in the banner.
+  // Persist the decision so the loop / promotion-guard reads allowUnattended without re-probing.
   try {
     const state = {
       tier: decision.tier,
@@ -214,9 +205,27 @@ async function main() {
     process.stderr.write("[autonomy-loop preflight] WARNING: could not write " + STATE_FILE + ": " + (e && e.message) + "\n");
   }
 
+  // STRICT / unattended (opt-in): ONLY an explicitly unattended launch hard-REFUSES a setup that cannot
+  // defend itself. Set AUTONOMY_UNATTENDED=1 (or pass --refuse-on-reduced-assurance) for CI / hands-off runs
+  // where you want it to stop loudly rather than start degraded.
+  const strict = process.env.AUTONOMY_UNATTENDED === "1" || process.argv.includes("--refuse-on-reduced-assurance");
+  if (!decision.allowStart && strict) {
+    process.stderr.write("[autonomy-loop] REFUSING an unattended start -- the gate cannot defend itself:\n");
+    for (const key of decision.refusals) if (REFUSALS[key]) process.stderr.write("  - " + REFUSALS[key] + "\n");
+    process.stderr.write("Provision the rails (/autonomy-harden + /autonomy-init), or drop AUTONOMY_UNATTENDED for an attended session.\n");
+    process.exit(1);
+  }
+
+  // Attended start (the DEFAULT): never block the session. Print a one-line status, and if the rails are
+  // not all real, say plainly that unattended auto-promotion is OFF and how to turn it on. The actual
+  // promotion block stays downstream (promotion-guard reads allowUnattended), so this is only a heads-up.
   process.stdout.write(decision.banner + "\n");
-  if (decision.refusals.length) {
-    process.stdout.write("[autonomy-loop] attended run permitted; auto-promotion stays OFF until: " + decision.refusals.join(", ") + ".\n");
+  if (!decision.allowUnattended) {
+    const why = decision.refusals.length ? " (" + decision.refusals.join(", ") + ")" : "";
+    process.stdout.write(
+      "[autonomy-loop] attended session OK -- unattended auto-promotion is OFF until the rails are real" + why +
+      ". Lock the control plane with /autonomy-harden and provision prod with /autonomy-init, or set gate.requireProdProtection=false to stop requiring it.\n"
+    );
   }
   process.exit(0);
 }

@@ -73,7 +73,12 @@ export function decideRatchet(measured = {}, baseline = null, opts = {}) {
     if (branchRose) parts.push(`branches ${branchFloor}% to ${mBranches}%`);
     return { ok: true, action: "ratchet", reason: `coverage rose (${parts.join(", ")}); raising the floor so it can never slide back`, newBaseline: { lines: newLines, branches: newBranches, epsilon } };
   }
-  return { ok: true, action: "hold", reason: `lines ${m}% / branches ${mBranches == null ? "n/a" : mBranches + "%"} hold at or above the ${floor}% / ${branchFloor}% floors` };
+  // Honest HOLD message: a value WITHIN the epsilon band is below the floor but not a regression, so do
+  // NOT claim "at or above" when it is actually a within-tolerance hold (the old message read 74.39% as
+  // "at or above the 74.41% floor", which is self-contradictory). State exact numbers + which side.
+  const rel = (val, fl) => (val >= fl ? `at/above the ${fl}% floor` : `within the ${epsilon}pp tolerance below the ${fl}% floor`);
+  const brStr = mBranches == null ? "branches n/a" : `branches ${mBranches}% ${rel(mBranches, branchFloor)}`;
+  return { ok: true, action: "hold", reason: `lines ${m}% ${rel(m, floor)}; ${brStr} (epsilon ${epsilon}pp; no regression, no ratchet)` };
 }
 
 // ---- thin runner (only when invoked directly) ----

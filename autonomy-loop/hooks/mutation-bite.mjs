@@ -1,10 +1,22 @@
 // autonomy-loop: mutation-bite (Greenfield Mutation-Kill Gate, doc 08). Pure decision core. The
 // complement to the golden-revert bite for the case the revert cannot handle (brand-new module+test,
 // empty-fix, behavior-preserving refactor): there is no prior fault to reintroduce, so instead ask "do
-// the test's assertions actually constrain THIS code?" Answer = mutation kill. Mutate only the COVERED,
-// CHANGED lines (reusing the project mutate engine), rerun ONLY the new test, require >=1 kill. Global
+// the test's assertions actually constrain THIS code?" Answer = mutation kill. Mutate the changed source
+// lines (reusing the project mutate engine), rerun ONLY the new test, require >=1 kill. Global
 // fail-closed invariant: NEVER exit 0 without a recorded killed mutant. No deps.
-// exit: 0 killed (proof), 1 no-kill (test pins nothing), 2 cannot-verify (no viable+covered mutant).
+// exit: 0 killed (proof), 1 no-kill (test pins nothing), 2 cannot-verify (no viable+scored mutant).
+//
+// TWO ways the runner picks which lines to mutate (R3a, ISSUE-6):
+//   - WITH --coverage: mutate only the COVERED changed lines (coverage-driven; the precise path, unchanged).
+//   - WITHOUT --coverage / --cov-file: a DIFF-BASED FALLBACK. A typical greenfield wave commits the new
+//     module AND its test together, and most installs have no coverage tool wired, so the coverage path
+//     was cannot-verify forever (the field report: the reviewer hand-did mutation on nearly every wave).
+//     With no coverage we mutate ALL the wave's CHANGED SOURCE lines (the non-test source hunk of the
+//     fix, the same set classify-bite calls net-new) and still require the new test to KILL >=1 mutant.
+//     This is strictly fail-closed: a changed line the test never exercises survives its mutant -> exit 1,
+//     and if there are NO changed source lines and NO coverage there is nothing to score -> exit 2. The
+//     EMPTY_FIX shape (no source hunk, only a new test importing existing code) has no changed source line
+//     to mutate, so without coverage it stays cannot-verify (exit 2): never a free pass.
 
 // decideMutationBite(input) -> { exit, reason, killed:[{lineNo,op}], viable, covered }
 //   input.mutantResults: [{ lineNo, op, covered, viable, killedByTest, timedOut, buildError }]
@@ -142,24 +154,37 @@ function mbMain(argv) {
     if (baseline.code !== 0) { _emit({ exit: 2, reason: "baseline-not-green: the new test is not GREEN on the fixed code; a kill would be meaningless. Stabilize the test first.", killed: [], viable: 0, covered: 0 }); return; }
     const perMutTimeout = Math.max(2000, Math.min(120000, timeoutMult * baseMs + 1500));
 
-    if (!covCmd) { _emit(decideMutationBite({ mutantResults: [] })); return; }
-    try { _sh(covCmd, wt); } catch (e) { console.error(`[mutation-bite] coverage command failed: ${e && e.message}`); }
-    const final = _readJson(join(wt, covFile));
-    if (!final) { _emit(decideMutationBite({ mutantResults: [] })); return; }
-    const covByFile = coverageFromIstanbul(final, wt);
     const mutateSet = {};
-    if (emptyFixTargets.length) {
-      for (const f of emptyFixTargets) {
-        const cov = covByFile[f]; if (!cov) continue;
-        const lines = [...new Set(cov.covered)].sort((a, b) => a - b);
-        if (lines.length) mutateSet[f] = lines;
+    if (!covCmd) {
+      // ---- R3a DIFF-BASED FALLBACK: no coverage tool wired. Mutate the wave's CHANGED SOURCE lines
+      // directly (no coverage intersection). A changed line the test never runs simply yields a surviving
+      // mutant -> exit 1, so this never weakens the kill requirement. EMPTY_FIX (no changed source hunk,
+      // only an imported existing file) has NO changed source line to mutate without coverage, so it stays
+      // cannot-verify (exit 2) rather than become a free pass.
+      if (Object.keys(changedSrc).length === 0) { _emit(decideMutationBite({ mutantResults: [] })); return; }
+      for (const [f, lines] of Object.entries(changedSrc)) {
+        const keep = [...new Set(lines)].sort((a, b) => a - b);
+        if (keep.length) mutateSet[f] = keep;
       }
     } else {
-      for (const [f, lines] of Object.entries(changedSrc)) {
-        const cov = covByFile[f]; if (!cov) continue;
-        const coveredLines = new Set(cov.covered);
-        const keep = lines.filter((ln) => coveredLines.has(ln));
-        if (keep.length) mutateSet[f] = keep;
+      // ---- coverage-driven path (unchanged): mutate only the COVERED lines. ----
+      try { _sh(covCmd, wt); } catch (e) { console.error(`[mutation-bite] coverage command failed: ${e && e.message}`); }
+      const final = _readJson(join(wt, covFile));
+      if (!final) { _emit(decideMutationBite({ mutantResults: [] })); return; }
+      const covByFile = coverageFromIstanbul(final, wt);
+      if (emptyFixTargets.length) {
+        for (const f of emptyFixTargets) {
+          const cov = covByFile[f]; if (!cov) continue;
+          const lines = [...new Set(cov.covered)].sort((a, b) => a - b);
+          if (lines.length) mutateSet[f] = lines;
+        }
+      } else {
+        for (const [f, lines] of Object.entries(changedSrc)) {
+          const cov = covByFile[f]; if (!cov) continue;
+          const coveredLines = new Set(cov.covered);
+          const keep = lines.filter((ln) => coveredLines.has(ln));
+          if (keep.length) mutateSet[f] = keep;
+        }
       }
     }
     if (Object.keys(mutateSet).length === 0) { _emit(decideMutationBite({ mutantResults: [] })); return; }
